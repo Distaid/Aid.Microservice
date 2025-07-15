@@ -50,3 +50,4 @@ publish/
 
 # JetBrains Rider
 *.sln.iml
+.idea/
