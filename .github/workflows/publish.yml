@@ -27,7 +27,7 @@ jobs:
         run: dotnet restore ./Aid.Microservice.sln
         
       - name: Build solution
-        run: dotnet build ./Aid.Microservice --configuration Release --no-restore -p:Version=${{ env.VERSION }}
+        run: dotnet build ./Aid.Microservice.sln --configuration Release --no-restore -p:Version=${{ env.VERSION }}
         
       - name: Pack and Push Shared
         run: |
