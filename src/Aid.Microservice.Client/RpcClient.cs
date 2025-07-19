@@ -39,6 +39,9 @@ public class RpcClient : IAsyncDisposable
         };
     }
     
+    /// <summary>
+    /// Initialize connection to RabbitMq queue
+    /// </summary>
     public async Task InitializeAsync()
     {
         try
@@ -74,6 +77,14 @@ public class RpcClient : IAsyncDisposable
         await Task.CompletedTask;
     }
     
+    /// <summary>
+    /// Makes a request that returns nothing
+    /// </summary>
+    /// <param name="service">Service name</param>
+    /// <param name="method">Method name in service</param>
+    /// <param name="parameters">Request data object</param>
+    /// <param name="timeout">Response waiting limit</param>
+    /// <param name="cancellationToken">Notification that operations should be canceled</param>
     public async Task CallAsynс(
         string service,
         string method,
@@ -84,6 +95,19 @@ public class RpcClient : IAsyncDisposable
         await CallAsync<int>(service, method, parameters, timeout, cancellationToken);
     }
     
+    /// <summary>
+    /// Makes a request that returns result
+    /// </summary>
+    /// <param name="service">Service name</param>
+    /// <param name="method">Method name in service</param>
+    /// <param name="parameters">Request data object</param>
+    /// <param name="timeout">Response waiting limit</param>
+    /// <param name="cancellationToken">Notification that operations should be canceled</param>
+    /// <typeparam name="TResponse">Response type, always can be null</typeparam>
+    /// <returns></returns>
+    /// <exception cref="InvalidOperationException">Failed to register callback due to duplicate CorrelationId</exception>
+    /// <exception cref="RpcCallException">Something go wrong in service method or incorrect response type</exception>
+    /// <exception cref="TimeoutException">Request execution is longer then timeout</exception>
     public async Task<TResponse?> CallAsync<TResponse>(
         string service,
         string method,
