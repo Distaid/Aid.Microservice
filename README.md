@@ -1,9 +1,9 @@
 # Aid.Microservice
 
-[![NuGet Version](https://img.shields.io/nuget/v/YourCompany.RabbitMqRpcLib.svg)](https://www.nuget.org/packages/YourCompany.RabbitMqRpcLib/)
+[![NuGet Version](https://img.shields.io/nuget/v/Aid.Microservice.Shared.svg)](https://www.nuget.org/packages/Aid.Microservice.Shared/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-An easy-to-use .NET library for building RPC microservices on top of RabbitMQ.
+An easy-to-use .NET library for building RPC microservices over RabbitMQ.
 
 This library abstracts away the complex logic of RPC interactions (request/response mapping, timeouts, queue handling) and allows developers to focus on business logic.
 
