@@ -1,0 +1,59 @@
+name: Publish NuGet Packages
+
+on:
+  push:
+    tags: 
+      - 'v*'
+        
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.6'
+          
+      - name: Extract version from tag
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
+          
+      - name: Restore dependencies
+        run: dotnet restore ./Aid.Microservice.sln
+        
+      - name: Build solution
+        run: dotnet build ./Aid.Microservice --configuration Release --no-restore -p:Version=${{ env.VERSION }}
+        
+      - name: Pack and Push Shared
+        run: |
+          dotnet pack ./src/Aid.Microservice.Shared/Aid.Microservice.Shared.csproj -c Release -p:PackageVersion=${{ env.VERSION }} -o ./packages
+          dotnet nuget push "./packages/*.nupkg" -k ${{ secrets.NUGET_API_KEY }} -s https://api.nuget.org/v3/index.json --skip-dublicate
+
+      - name: Pack and Push Client
+        run: |
+          dotnet pack ./src/Aid.Microservice.Client/Aid.Microservice.Client.csproj -c Release -p:PackageVersion=${{ env.VERSION }} -o ./packages
+          dotnet nuget push "./packages/*.nupkg" -k ${{ secrets.NUGET_API_KEY }} -s https://api.nuget.org/v3/index.json --skip-dublicate
+
+      - name: Pack and Push Client AspNetCore
+        run: |
+          dotnet pack ./src/Aid.Microservice.Client.AspNetCore/Aid.Microservice.Client.AspNetCore.csproj -c Release -p:PackageVersion=${{ env.VERSION }} -o ./packages
+          dotnet nuget push "./packages/*.nupkg" -k ${{ secrets.NUGET_API_KEY }} -s https://api.nuget.org/v3/index.json --skip-dublicate
+
+      - name: Pack and Push Server
+        run: |
+          dotnet pack ./src/Aid.Microservice.Server/Aid.Microservice.Server.csproj -c Release -p:PackageVersion=${{ env.VERSION }} -o ./packages
+          dotnet nuget push "./packages/*.nupkg" -k ${{ secrets.NUGET_API_KEY }} -s https://api.nuget.org/v3/index.json --skip-dublicate
+          
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref }}
+          name: v${{ env.VERSION }}
+          body: |
+            Release version ${{ env.VERSION }}.
+          files: ./packages/*.nupkg
