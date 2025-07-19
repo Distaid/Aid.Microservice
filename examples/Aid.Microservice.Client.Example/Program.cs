@@ -1,6 +1,6 @@
 ﻿using Aid.Microservice.Client;
 
-await using var client = new RpcClient("192.168.100.99", 5672, "distaid", "91375");
+await using var client = new RpcClient("localhost", 5672, "user", "12345");
 await client.InitializeAsync();
 
 var simpleResult = await client.CallAsync<int>("simple", "multiple", new {a = 5, b = 10});
