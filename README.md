@@ -1,6 +1,6 @@
 # Aid.Microservice
 
-[![NuGet Version](https://img.shields.io/nuget/v/Aid.Microservice.Shared.svg)](https://www.nuget.org/packages/Aid.Microservice.Shared/)
+[![NuGet Version](https://img.shields.io/nuget/v/Aid.Microservice.Shared.svg)](https://www.nuget.org/packages/Aid.Microservice.Shared/1.0.1)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 An easy-to-use .NET library for building RPC microservices over RabbitMQ.
