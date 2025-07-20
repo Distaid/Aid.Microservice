@@ -1,5 +1,8 @@
 ﻿namespace Aid.Microservice.Shared.Attributes;
 
+/// <summary>
+/// Attribute that mark class as microservice.
+/// </summary>
 [AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
 public class MicroserviceAttribute : Attribute
 {
@@ -7,6 +10,10 @@ public class MicroserviceAttribute : Attribute
 
     public string ServiceName { get; private set; } = string.Empty;
 
+    /// <summary>
+    /// Mark class as microservice.
+    /// </summary>
+    /// <param name="alias">Name for service. Used name of class as default</param>
     public MicroserviceAttribute(string? alias = null)
     {
         _alias = alias?.Trim().ToLowerInvariant();
