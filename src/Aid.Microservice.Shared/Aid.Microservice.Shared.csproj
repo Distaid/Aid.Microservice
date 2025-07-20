@@ -7,7 +7,7 @@
     
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>    
     <PackageId>Aid.Microservice.Shared</PackageId>
-    <Version>1.0.0</Version>
+    <Version>1.0.1</Version>
     <Authors>Distaid</Authors>
     <Description>Shared models and attributes for Aid.Microservice ecosystem.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
