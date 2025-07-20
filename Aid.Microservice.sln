@@ -19,6 +19,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Aid.Microservice.Server.Exa
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Aid.Microservice.Client.Example", "examples/Aid.Microservice.Client.Example\Aid.Microservice.Client.Example.csproj", "{FA6432E1-6B0C-4F33-B9A9-A71505B80801}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Aid.Microservice.Client.AspNetCore.Example", "examples/Aid.Microservice.Client.AspNetCore.Example\Aid.Microservice.Client.AspNetCore.Example.csproj", "{13CB4E9F-7824-49A3-A9BF-D26C6A67E290}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -49,6 +51,10 @@ Global
 		{FA6432E1-6B0C-4F33-B9A9-A71505B80801}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{FA6432E1-6B0C-4F33-B9A9-A71505B80801}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{FA6432E1-6B0C-4F33-B9A9-A71505B80801}.Release|Any CPU.Build.0 = Release|Any CPU
+		{13CB4E9F-7824-49A3-A9BF-D26C6A67E290}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{13CB4E9F-7824-49A3-A9BF-D26C6A67E290}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{13CB4E9F-7824-49A3-A9BF-D26C6A67E290}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{13CB4E9F-7824-49A3-A9BF-D26C6A67E290}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -60,6 +66,7 @@ Global
 		{F9DE0FB4-DAEF-4ED1-9975-01CD3E4BE31D} = {36D591C7-65C7-A0D1-1CBC-10CDE441BDC8}
 		{9425C3FE-E541-4B0A-B841-B45CF8DFABF5} = {A7D262B6-F153-4FA7-9C9C-163BD37E187F}
 		{FA6432E1-6B0C-4F33-B9A9-A71505B80801} = {A7D262B6-F153-4FA7-9C9C-163BD37E187F}
+		{13CB4E9F-7824-49A3-A9BF-D26C6A67E290} = {A7D262B6-F153-4FA7-9C9C-163BD37E187F}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {6372D812-96BE-4DDA-9A4A-2D1CBA496CA8}

@@ -1,0 +1,6 @@
+@HostAddress = http://localhost:5288
+
+GET {{HostAddress}}/
+Accept: text/plain
+
+###

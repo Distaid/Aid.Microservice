@@ -59,7 +59,8 @@ And run server in program.cs:
 
 ```csharp
 MicroserviceHostBuilder
-    .Build(args)
+    .CreateBuilder(args)
+    .Build()
     .Run();
 ```
 
@@ -182,12 +183,16 @@ You can watch the [Server Example Project](examples/Aid.Microservice.Server.Exam
 
 ## Client
 
+#### Configuration
+
 To access the server you need RpcClient:
 
 ```csharp
 await using var client = new RpcClient("localhost", 5672, "user", "12345");
 await client.InitializeAsync();
 ```
+
+#### Usage
 
 To make request call CallAsync or CallAsync<> with return type:
 
@@ -203,3 +208,37 @@ CallAsync accept 5 arguments:
 - CancellationToken (CancellationToken, optional)
 
 You can watch the [Client Example Project](examples/Aid.Microservice.Client.Example).
+
+### AspNetCore
+
+#### Configuration
+
+Register RpcClient as Service via AddMicroserviceClient extension:
+
+```csharp
+builder.Services.AddMicroserviceClient();
+```
+
+> Note: Add RabbitMqConfiguration section in `appsetting.json` using this method.
+
+Or pass RabbitMqConfiguration as parameter:
+
+```csharp
+builder.Services.AddMicroserviceClient(new RabbitMqConfiguration(...));
+```
+
+> Note: RpcClient registered as Scope service.
+
+#### Usage
+
+Pass RpcClient as parameter and initialize first.
+
+```csharp
+app.MapGet("/", async (RpcClient client) =>
+{
+    await client.InitializeAsync();
+    return await client.CallAsync<string>("proxy", "multiplystring");
+});
+```
+
+You can watch the [Client AspNetCore Example Project](examples/Aid.Microservice.Client.AspNetCore.Example).
