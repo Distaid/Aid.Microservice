@@ -6,7 +6,7 @@ public class RabbitMqConfiguration
     public int Port { get; set; } = 5672;
     public string Username { get; set; } = "guest";
     public string Password { get; set; } = "guest";
-    public string ExchangeName { get; set; } = "aid_rpc";
+    public string ExchangeName { get; set; } = string.Empty;
     public int RetryCount { get; set; } = 3;
     public int RecoveryInterval { get; set; } = 5;
 }

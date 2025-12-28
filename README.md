@@ -140,12 +140,40 @@ builder.Services.AddSingleton<IRpcProtocol, NamekoProtocol>();
 // 2. Add Client/Server
 builder.Services.AddAidMicroserviceClient(options => 
 {
-    // Nameko uses "nameko-rpc" exchange by default or set as empty string here
+    // Nameko uses "nameko-rpc" exchange by default or set one you need
     options.ExchangeName = "nameko-rpc"; 
 });
 ```
 
 Now all RPC calls will be formatted as Nameko messages (`{"args": [], "kwargs": {...}}`) and routed using Nameko conventions.
+
+#### Sending Arguments (args and kwargs)
+
+By default, passing an object sends it as named arguments (`kwargs`). If you need to send positional arguments (`args`), use the `RpcNamekoRequest` wrapper:
+
+```csharp
+// 1. Sends kwargs: {'a': 1, 'b': 2}
+await client.CallAsync("add", new { a = 1, b = 2 });
+
+// 2. Sends args: [10, 20]
+await client.CallAsync("sum_list", 
+    new RpcNamekoRequest 
+    { 
+        Args = new object[] { 10, 20 } 
+    }
+);
+
+// or pass args as "params"
+await client.CallAsync("sum_list", new RpcNamekoRequest(10, 20));
+
+// 3. Sends both: args=['pdf'], kwargs={'async': true}
+await client.CallAsync("generate", 
+    new RpcNamekoRequest(
+        args: new object[] { "pdf" }, 
+        kwargs: new { async = true }
+    )
+);
+```
 
 ### Configuration
 
@@ -167,7 +195,7 @@ RabbitMq connection is required in `appsettings.json`
 }
 ```
 
-- `ExchangeName` (optional): The RabbitMQ exchange used for routing messages. Default is `aid_rpc`.
+- `ExchangeName` (optional): The RabbitMQ exchange used for routing messages. Default is empty string. Set if you want to use a custom exchange.
 - `RetryCount` (optional): How many times to retry connection. Default is 3.
 - `RecoveryInterval` (optional): Seconds between retries. Default is 5.
 

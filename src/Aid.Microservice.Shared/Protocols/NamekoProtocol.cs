@@ -13,11 +13,23 @@ public class NamekoProtocol : IRpcProtocol
 
     public (byte[] Body, string RoutingKey) CreateRequest(string serviceName, string methodName, object? parameters, JsonSerializerOptions options)
     {
-        var kwargs = ConvertParametersToDictionary(parameters, options);
+        object[] args;
+        Dictionary<string, object>? kwargs;
+        
+        if (parameters is RpcNamekoRequest namekoRequest)
+        {
+            args = namekoRequest.Args;
+            kwargs = ConvertParametersToDictionary(namekoRequest.Kwargs, options);
+        }
+        else
+        {
+            args = [];
+            kwargs = ConvertParametersToDictionary(parameters, options);
+        }
 
         var requestDto = new NamekoRequestDto
         {
-            Args = [],
+            Args = args,
             Kwargs = kwargs ?? new Dictionary<string, object>(),
             ContextData = new Dictionary<string, object>()
         };
