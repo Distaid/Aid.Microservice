@@ -9,7 +9,7 @@ var app = builder.Build();
 
 app.MapGet("/", async (IRpcClientFactory factory) =>
 {
-    await using var proxyClient = factory.CreateClient("proxy");
+    var proxyClient = factory.CreateClient("proxy");
     return await proxyClient.CallAsync<string>("multiplystring");
 });
 

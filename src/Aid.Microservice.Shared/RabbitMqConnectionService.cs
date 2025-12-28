@@ -5,6 +5,7 @@ using RabbitMQ.Client.Events;
 using RabbitMQ.Client.Exceptions;
 using System.Net.Sockets;
 using Aid.Microservice.Shared.Configuration;
+using Aid.Microservice.Shared.Interfaces;
 
 namespace Aid.Microservice.Shared;
 

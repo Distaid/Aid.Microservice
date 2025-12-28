@@ -1,7 +1,7 @@
 using System.Text.Json;
 using Aid.Microservice.Server.Infrastructure;
-using Aid.Microservice.Shared;
 using Aid.Microservice.Shared.Configuration;
+using Aid.Microservice.Shared.Interfaces;
 using Aid.Microservice.Shared.Models;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -16,7 +16,8 @@ public class RpcListenerHost(
     IRabbitMqConnectionService connectionService,
     IRpcEndpointRegistry registry,
     IRpcRequestDispatcher dispatcher,
-    IOptions<RabbitMqConfiguration> rabbitConfig)
+    IOptions<RabbitMqConfiguration> rabbitConfig,
+    IRpcProtocol protocol)
     : BackgroundService
 {
     private readonly RabbitMqConfiguration _rabbitConfig = rabbitConfig.Value;
@@ -37,7 +38,11 @@ public class RpcListenerHost(
             return;
         }
         
-        logger.LogInformation("Starting RPC Listeners for {Count} services...", services.Count);
+        var exchangeName = !string.IsNullOrWhiteSpace(_rabbitConfig.ExchangeName) 
+            ? _rabbitConfig.ExchangeName 
+            : protocol.DefaultExchangeName;
+
+        logger.LogInformation("Starting RPC Listeners for {Count} services. Exchange: {Ex} (Type: {Type})", services.Count, exchangeName, protocol.ExchangeType);
         if (!await connectionService.TryConnectAsync(stoppingToken))
         {
             logger.LogCritical("Could not connect to RabbitMQ. RPC Server stopping.");
@@ -45,11 +50,14 @@ public class RpcListenerHost(
         
         foreach (var serviceName in services)
         {
-            if (stoppingToken.IsCancellationRequested) break;
+            if (stoppingToken.IsCancellationRequested)
+            {
+                break;
+            }
             
             try
             {
-                await StartServiceListenerAsync(serviceName, stoppingToken);
+                await StartServiceListenerAsync(serviceName, exchangeName, stoppingToken);
             }
             catch (Exception ex)
             {
@@ -58,19 +66,18 @@ public class RpcListenerHost(
         }
     }
 
-    private async Task StartServiceListenerAsync(string serviceName, CancellationToken token)
+    private async Task StartServiceListenerAsync(string serviceName, string exchangeName, CancellationToken token)
     {
         var channel = await connectionService.CreateChannelAsync(token);
         _activeChannels.Add(channel);
         
-        var exchangeName = _rabbitConfig.ExchangeName;
-        var queueName = exchangeName.EndsWith("_") || exchangeName.EndsWith(".") 
+        var queueName = exchangeName.EndsWith('_') || exchangeName.EndsWith('.') 
             ? $"{exchangeName}{serviceName}" 
             : $"{exchangeName}_{serviceName}";
         
         await channel.ExchangeDeclareAsync(
             exchange: exchangeName,
-            type: ExchangeType.Direct, 
+            type: protocol.ExchangeType, 
             durable: true,
             autoDelete: false, 
             arguments: null, 
@@ -84,10 +91,11 @@ public class RpcListenerHost(
             arguments: null, 
             cancellationToken: token);
         
+        var bindingKey = protocol.GetServiceBindingKey(serviceName);
         await channel.QueueBindAsync(
             queue: queueName, 
             exchange: exchangeName, 
-            routingKey: serviceName,
+            routingKey: bindingKey,
             arguments: null, 
             cancellationToken: token);
         
@@ -124,13 +132,11 @@ public class RpcListenerHost(
         }
         
         RpcResponse response;
-
         try
         {
-            var bodyReader = ea.Body; 
-            var request = JsonSerializer.Deserialize<RpcRequest>(bodyReader.Span, _jsonOptions);
+            var request = protocol.ParseRequest(ea.Body.Span, ea.RoutingKey, _jsonOptions);
             
-            if (request == null || string.IsNullOrWhiteSpace(request.Method))
+            if (string.IsNullOrWhiteSpace(request.Method))
             {
                 response = new RpcResponse 
                 { 
@@ -155,7 +161,7 @@ public class RpcListenerHost(
 
         try
         {
-            var responseBytes = JsonSerializer.SerializeToUtf8Bytes(response, _jsonOptions);
+            var responseBytes = protocol.CreateResponse(response, _jsonOptions);
             
             var replyProps = new BasicProperties
             {

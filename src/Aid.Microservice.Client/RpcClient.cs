@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 using System.Text.Json;
 using Aid.Microservice.Client.Infrastructure;
 using Aid.Microservice.Client.Models;
-using Aid.Microservice.Shared;
+using Aid.Microservice.Shared.Interfaces;
 using Aid.Microservice.Shared.Models;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
@@ -10,14 +10,18 @@ using RabbitMQ.Client.Events;
 
 namespace Aid.Microservice.Client;
 
-public class RpcClient : IRpcClient
+public class RpcClient(
+    IRabbitMqConnectionService connectionService,
+    ILogger<RpcClient> logger,
+    IRpcProtocol protocol,
+    string targetServiceName,
+    string exchangeName,
+    bool ownsConnectionService = false)
+    : IRpcClient
 {
-    private readonly IRabbitMqConnectionService _connectionService;
-    private readonly ILogger _logger;
-    private readonly bool _ownsConnectionService;
-    
-    private readonly string _targetServiceName;
-    private readonly string _exchangeName;
+    private readonly string _exchangeName = !string.IsNullOrWhiteSpace(exchangeName) 
+        ? exchangeName 
+        : protocol.DefaultExchangeName;
     
     private IChannel? _publishChannel;
     private readonly SemaphoreSlim _publishLock = new(1, 1);
@@ -34,20 +38,6 @@ public class RpcClient : IRpcClient
         PropertyNameCaseInsensitive = true,
         PropertyNamingPolicy = null
     };
-    
-    public RpcClient(
-        IRabbitMqConnectionService connectionService,
-        ILogger<RpcClient> logger,
-        string targetServiceName,
-        string exchangeName,
-        bool ownsConnectionService = false)
-    {
-        _connectionService = connectionService;
-        _logger = logger;
-        _targetServiceName = targetServiceName;
-        _exchangeName = exchangeName;
-        _ownsConnectionService = ownsConnectionService;
-    }
 
     public async Task InitializeAsync(CancellationToken token = default)
     {
@@ -56,13 +46,13 @@ public class RpcClient : IRpcClient
             return;
         }
 
-        if (!await _connectionService.TryConnectAsync(token))
+        if (!await connectionService.TryConnectAsync(token))
         {
             throw new InvalidOperationException("RPC Client failed to connect to RabbitMQ.");
         }
 
-        _publishChannel = await _connectionService.CreateChannelAsync(token);
-        _subscribeChannel = await _connectionService.CreateChannelAsync(token);
+        _publishChannel = await connectionService.CreateChannelAsync(token);
+        _subscribeChannel = await connectionService.CreateChannelAsync(token);
 
         var queueResult = await _subscribeChannel.QueueDeclareAsync(
             queue: "", 
@@ -80,8 +70,7 @@ public class RpcClient : IRpcClient
         await _subscribeChannel.BasicConsumeAsync(queue: _replyQueueName, autoAck: true, consumer: _consumer, cancellationToken: token);
 
         _isInitialized = true;
-        _logger.LogInformation("RPC Client initialized. Bound to service: {Service}. Reply Queue: {Queue}", 
-            _targetServiceName ?? "<ANY>", _replyQueueName);
+        logger.LogInformation("RPC Client initialized. Bound to service: {Service}. Reply Queue: {Queue}", targetServiceName, _replyQueueName);
     }
     
     private async Task OnResponseReceivedAsync(object sender, BasicDeliverEventArgs ea)
@@ -103,7 +92,7 @@ public class RpcClient : IRpcClient
     
     private void EnsureTargetServiceBound()
     {
-        if (string.IsNullOrEmpty(_targetServiceName))
+        if (string.IsNullOrEmpty(targetServiceName))
         {
             throw new InvalidOperationException(
                 "This RpcClient is not bound to a specific service. " +
@@ -133,19 +122,25 @@ public class RpcClient : IRpcClient
 
         try
         {
-            var request = new RpcRequest
-            {
-                Method = method.ToLowerInvariant(),
-                Parameters = ConvertParameters(parameters)
-            };
-            var body = JsonSerializer.SerializeToUtf8Bytes(request, _jsonOptions);
+            var (body, routingKey) = protocol.CreateRequest(targetServiceName, method, parameters, _jsonOptions);
             
-            var props = new BasicProperties { CorrelationId = correlationId, ReplyTo = _replyQueueName };
+            var props = new BasicProperties
+            {
+                CorrelationId = correlationId,
+                ReplyTo = _replyQueueName,
+                ContentType = protocol.ContentType
+            };
 
             await _publishLock.WaitAsync(cts.Token);
             try
             {
-                await _publishChannel!.BasicPublishAsync(exchange: _exchangeName, routingKey: _targetServiceName, mandatory: true, basicProperties: props, body: body, cancellationToken: cts.Token);
+                await _publishChannel!.BasicPublishAsync(
+                    exchange: _exchangeName,
+                    routingKey: routingKey,
+                    mandatory: true,
+                    basicProperties: props,
+                    body: body,
+                    cancellationToken: cts.Token);
             }
             finally
             {
@@ -160,7 +155,7 @@ public class RpcClient : IRpcClient
         }
         catch (OperationCanceledException)
         {
-            throw new TimeoutException($"RPC call to {_targetServiceName}.{method} timed out.");
+            throw new TimeoutException($"RPC call to {targetServiceName}.{method} timed out.");
         }
         catch
         {
@@ -171,42 +166,30 @@ public class RpcClient : IRpcClient
     
     private TResponse? HandleResponse<TResponse>(byte[] responseBytes, string correlationId)
     {
-        var response = JsonSerializer.Deserialize<RpcResponse>(responseBytes, _jsonOptions);
-        if (response == null)
+        var rpcResponse = protocol.ParseResponse(responseBytes, _jsonOptions);
+        
+        if (rpcResponse == null)
         {
             throw new RpcCallException("Empty response", correlationId);
         }
 
-        if (!response.IsSuccess)
+        if (!rpcResponse.IsSuccess)
         {
-            throw new RpcCallException(response.Error!, correlationId);
+            throw new RpcCallException(rpcResponse.Error!, correlationId);
         }
 
-        if (response.Result is JsonElement je)
+        if (rpcResponse.Result is JsonElement je)
         {
             return je.Deserialize<TResponse>(_jsonOptions);
         }
 
-        if (response.Result is TResponse tr)
+        if (rpcResponse.Result is TResponse tr)
         {
             return tr;
         }
         
-        var json = JsonSerializer.Serialize(response.Result, _jsonOptions);
+        var json = JsonSerializer.Serialize(rpcResponse.Result, _jsonOptions);
         return JsonSerializer.Deserialize<TResponse>(json, _jsonOptions);
-    }
-    
-    private Dictionary<string, JsonElement>? ConvertParameters(object? parameters)
-    {
-        if (parameters == null)
-        {
-            return null;
-        }
-        
-        using var doc = JsonSerializer.SerializeToDocument(parameters, _jsonOptions);
-        return doc.RootElement.ValueKind == JsonValueKind.Object
-            ? doc.RootElement.EnumerateObject().ToDictionary(p => p.Name, p => p.Value.Clone(), StringComparer.OrdinalIgnoreCase)
-            : null;
     }
     
     public async ValueTask DisposeAsync()
@@ -228,9 +211,9 @@ public class RpcClient : IRpcClient
             await _subscribeChannel.DisposeAsync();
         }
 
-        if (_ownsConnectionService)
+        if (ownsConnectionService)
         {
-            await _connectionService.DisposeAsync();
+            await connectionService.DisposeAsync();
         }
         
         GC.SuppressFinalize(this);

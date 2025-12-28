@@ -2,6 +2,8 @@ using System.Collections.Concurrent;
 using Aid.Microservice.Client.Infrastructure;
 using Aid.Microservice.Shared;
 using Aid.Microservice.Shared.Configuration;
+using Aid.Microservice.Shared.Interfaces;
+using Aid.Microservice.Shared.Protocols;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -12,6 +14,7 @@ public class RpcClientFactory : IRpcClientFactory, IAsyncDisposable
 {
     private readonly IRabbitMqConnectionService _connectionService;
     private readonly ILoggerFactory _loggerFactory;
+    private readonly IRpcProtocol _protocol;
     private readonly bool _ownsConnectionService;
     private readonly string _exchangeName;
     
@@ -20,18 +23,17 @@ public class RpcClientFactory : IRpcClientFactory, IAsyncDisposable
     public RpcClientFactory(
         IRabbitMqConnectionService connectionService, 
         ILoggerFactory loggerFactory,
-        IOptions<RabbitMqConfiguration> config)
+        IOptions<RabbitMqConfiguration> config,
+        IRpcProtocol protocol)
     {
         _connectionService = connectionService;
         _loggerFactory = loggerFactory;
         _ownsConnectionService = false;
-        
-        _exchangeName = !string.IsNullOrWhiteSpace(config.Value.ExchangeName) 
-            ? config.Value.ExchangeName 
-            : "aid_rpc";
+        _exchangeName = config.Value.ExchangeName;
+        _protocol = protocol;
     }
 
-    public RpcClientFactory(RabbitMqConfiguration configuration)
+    public RpcClientFactory(RabbitMqConfiguration configuration, IRpcProtocol? protocol = null)
     {
         _loggerFactory = NullLoggerFactory.Instance;
         var connectionLogger = _loggerFactory.CreateLogger<RabbitMqConnectionService>();
@@ -40,32 +42,42 @@ public class RpcClientFactory : IRpcClientFactory, IAsyncDisposable
             connectionLogger, 
             Options.Create(configuration));
 
+        _protocol = protocol ?? new DefaultJsonProtocol();
+        _exchangeName = string.IsNullOrEmpty(configuration.ExchangeName)
+            ? _protocol.DefaultExchangeName
+            : configuration.ExchangeName;
         _ownsConnectionService = true;
-        _exchangeName = configuration.ExchangeName;
     }
     
-    public RpcClientFactory(string hostname, int port, string username, string password, string exchangeName = "aid_rpc", int retryCount = 3, int recoveryInterval = 3)
+    public RpcClientFactory(
+        string hostname,
+        int port,
+        string username,
+        string password,
+        string? exchangeName = null,
+        int retryCount = 3,
+        int recoveryInterval = 3,
+        IRpcProtocol? protocol = null)
     {
+        _protocol = protocol ?? new DefaultJsonProtocol();
+        _exchangeName = exchangeName ?? _protocol.DefaultExchangeName;
+        
         var config = new RabbitMqConfiguration
         {
             Hostname = hostname,
             Port = port,
             Username = username,
             Password = password,
-            ExchangeName = exchangeName,
+            ExchangeName = _exchangeName,
             RetryCount = retryCount,
             RecoveryInterval = recoveryInterval
         };
-
+        
         _loggerFactory = NullLoggerFactory.Instance;
         var connectionLogger = _loggerFactory.CreateLogger<RabbitMqConnectionService>();
+        _connectionService = new RabbitMqConnectionService(connectionLogger, Options.Create(config));
         
-        _connectionService = new RabbitMqConnectionService(
-            connectionLogger, 
-            Options.Create(config));
-
         _ownsConnectionService = true;
-        _exchangeName = exchangeName;
     }
     
     public IRpcClient CreateClient(string serviceName)
@@ -76,8 +88,9 @@ public class RpcClientFactory : IRpcClientFactory, IAsyncDisposable
         }
         
         return _clients.GetOrAdd(serviceName, name => new RpcClient(
-            _connectionService, 
-            _loggerFactory.CreateLogger<RpcClient>(), 
+            _connectionService,
+            _loggerFactory.CreateLogger<RpcClient>(),
+            _protocol,
             name,
             _exchangeName));
     }

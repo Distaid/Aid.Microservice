@@ -1,6 +1,8 @@
 using Aid.Microservice.Client.Infrastructure;
 using Aid.Microservice.Shared;
 using Aid.Microservice.Shared.Configuration;
+using Aid.Microservice.Shared.Interfaces;
+using Aid.Microservice.Shared.Protocols;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -69,6 +71,7 @@ public static class AidMicroserviceClientExtensions
         
     private static void RegisterServices(IServiceCollection services)
     {
+        services.TryAddSingleton<IRpcProtocol, DefaultJsonProtocol>();
         services.TryAddSingleton<IRabbitMqConnectionService, RabbitMqConnectionService>();
         services.TryAddSingleton<IRpcClientFactory, RpcClientFactory>();
     }

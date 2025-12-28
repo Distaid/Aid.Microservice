@@ -10,6 +10,8 @@ using Aid.Microservice.Client;
 using Aid.Microservice.Client.Infrastructure;
 using Aid.Microservice.Shared;
 using Aid.Microservice.Shared.Configuration;
+using Aid.Microservice.Shared.Interfaces;
+using Aid.Microservice.Shared.Protocols;
 
 namespace Aid.Microservice.Server.Extensions;
 
@@ -39,6 +41,7 @@ public static class MicroserviceExtensions
             
             RegisterServiceClasses(services, assemblyToScan);
             
+            services.TryAddSingleton<IRpcProtocol, DefaultJsonProtocol>();
             services.TryAddSingleton<IRpcProxyFactory, RpcProxyFactory>(); 
             services.TryAddSingleton<IRpcClientFactory, RpcClientFactory>(); 
             

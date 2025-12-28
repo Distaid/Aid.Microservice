@@ -46,10 +46,7 @@ Create Microservice class:
 public class SimpleService
 {
     [RpcCallable] // Method name will be "multiple" by default
-    public int Multiple(int a, int b)
-    {
-        return a * b;
-    }
+    public int Multiple(int a, int b) => a * b;
 }
 ```
 
@@ -116,6 +113,39 @@ public class ProxyService(IRpcProxyFactory factory)
     }
 }
 ```
+
+### Protocols & Interoperability
+
+The library is designed to support multiple messaging protocols via `IRpcProtocol`.
+
+#### Default Protocol
+
+By default, it uses a JSON-based protocol over a RabbitMQ **Topic Exchange**.
+
+- **Routing Key**: `service_name.method_name`.
+- **Payload**: `{"Method": "...", "Parameters": {...}}`.
+
+#### Python (Nameko) Support
+
+The library includes built-in support for [Nameko](https://nameko.readthedocs.io/), a popular Python microservices framework. This allows your .NET services to transparently communicate with Python services.
+
+To enable Nameko support, register the protocol in your `Program.cs`:
+
+```csharp
+using Aid.Microservice.Protocols;
+
+// 1. Register NamekoProtocol
+builder.Services.AddSingleton<IRpcProtocol, NamekoProtocol>();
+
+// 2. Add Client/Server
+builder.Services.AddAidMicroserviceClient(options => 
+{
+    // Nameko uses "nameko-rpc" exchange by default or set as empty string here
+    options.ExchangeName = "nameko-rpc"; 
+});
+```
+
+Now all RPC calls will be formatted as Nameko messages (`{"args": [], "kwargs": {...}}`) and routed using Nameko conventions.
 
 ### Configuration
 
@@ -209,7 +239,7 @@ Inject `IRpcClientFactory` into your controllers or services.
 ```csharp
 app.MapGet("/", async (IRpcClientFactory factory) =>
 {
-    await using var proxyClient = factory.CreateClient("proxy");
+    var proxyClient = factory.CreateClient("proxy");
     return await proxyClient.CallAsync<string>("multiplystring");
 });
 ```
