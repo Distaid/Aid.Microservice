@@ -6,8 +6,5 @@ namespace Aid.Microservice.Server.Example.Services;
 public class SimpleService
 {
     [RpcCallable]
-    public int Multiple(int a, int b)
-    {
-        return a * b;
-    }
+    public int Multiple(int a, int b) => a * b;
 }

@@ -1,7 +1,8 @@
 # Aid.Microservice
 
-[![NuGet Version](https://img.shields.io/nuget/v/Aid.Microservice.Shared.svg)](https://www.nuget.org/packages/Aid.Microservice.Shared/1.0.1)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![NuGet Version](https://img.shields.io/nuget/v/Aid.Microservice.Shared.svg?style=flat-square&logo=nuget)](https://www.nuget.org/packages/Aid.Microservice.Shared/)
+[![NuGet Downloads](https://img.shields.io/nuget/dt/Aid.Microservice.Shared.svg?style=flat-square&logo=nuget)](https://www.nuget.org/packages/Aid.Microservice.Shared/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](https://opensource.org/licenses/MIT)
 
 An easy-to-use .NET library for building RPC microservices over RabbitMQ.
 
@@ -31,12 +32,9 @@ Then just add `appsettings.json`. For example:
     "RabbitMqConfiguration": {
         "Hostname": "localhost",
         "Port": 5672,
-        "Username": "user",
-        "Password": "12345",
+        "Username": "guest",
+        "Password": "guest",
         "RetryCount": 1
-    },
-    "HostConfiguration": {
-        "ShowServiceRegisterMetrics": false
     }
 }
 ```
@@ -44,10 +42,10 @@ Then just add `appsettings.json`. For example:
 Create Microservice class:
 
 ```csharp
-[Microservice]
+[Microservice] // Service name will be "simple" by default
 public class SimpleService
 {
-    [RpcCallable]
+    [RpcCallable] // Method name will be "multiple" by default
     public int Multiple(int a, int b)
     {
         return a * b;
@@ -58,10 +56,10 @@ public class SimpleService
 And run server in program.cs:
 
 ```csharp
-MicroserviceHostBuilder
+await MicroserviceHostBuilder
     .CreateBuilder(args)
     .Build()
-    .Run();
+    .RunAsync();
 ```
 
 ### Features
@@ -73,10 +71,7 @@ MicroserviceHostBuilder
 public class SimpleService
 {
     [RpcCallable]
-    public int Multiple(int a, int b)
-    {
-        return a * b;
-    }
+    public int Multiple(int a, int b) => a * b;
 }
 ```
 
@@ -87,14 +82,11 @@ public class SimpleService
 public class NamedService
 {
     [RpcCallable("and_me")]
-    public int Subtract(int a, int b)
-    {
-        return a - b;
-    }
+    public int Subtract(int a, int b) => a - b;
 }
 ```
 
-- DI for component registration in IServiceCollection
+- **DI Support**: Services are registered as `Scoped`, allowing you to inject DbContexts or other dependencies
 
 ```csharp
 [Microservice]
@@ -108,32 +100,13 @@ public class DiService(ILogger<DiService> logger)
 }
 ```
 
-- Fully asynchronous API for maximum performance
+- **Proxy Support**: Use `IRpcProxyFactory` to communicate between services on the server side.
 
 ```csharp
 [Microservice]
-public class AsyncService
+public class ProxyService(IRpcProxyFactory factory)
 {
-    [RpcCallable]
-    public async Task Delay(int seconds)
-    {
-        await Task.Delay(TimeSpan.FromSeconds(seconds));
-    }
-}
-```
-
-- Proxy for interservice communication via RpcProxyFactory
-
-```csharp
-[Microservice]
-public class ProxyService
-{
-    private readonly IRpcProxy _multipleProxy;
-    
-    public ProxyService(IRpcProxyFactory factory)
-    {
-        _multipleProxy = factory.CreateProxy("simple");
-    }
+    private readonly IRpcProxy _multipleProxy = factory.CreateProxy("simple");
     
     [RpcCallable]
     public async Task<string> MultiplyString()
@@ -155,57 +128,56 @@ RabbitMq connection is required in `appsettings.json`
     "RabbitMqConfiguration": {
         "Hostname": "localhost",
         "Port": 5672,
-        "Username": "user",
-        "Password": "12345"
+        "Username": "guest",
+        "Password": "guest",
+        "ExchangeName": "aid_rpc",
+        "RetryCount": 3,
+        "RecoveryInterval": 5
     }
 }
 ```
 
-Optionally you can add `RetryCount` to set how many times to reconnect and `RecoveryInterval` to set interval between retry.
-
-> Note: `RetryCount` is 3 by default. `RecoveryInterval` is 5 by default and sets in seconds.
+- `ExchangeName` (optional): The RabbitMQ exchange used for routing messages. Default is `aid_rpc`.
+- `RetryCount` (optional): How many times to retry connection. Default is 3.
+- `RecoveryInterval` (optional): Seconds between retries. Default is 5.
 
 #### Host
 
-Host configuration is optional and sets whether to output logs when registering services:
+Simple example of creating host:
 
-```json
-{
-    "HostConfiguration": {
-        "ShowServiceRegisterMetrics": false
-    }
-}
+```csharp
+await MicroserviceHostBuilder
+    .CreateBuilder(args)
+    .Build()
+    .RunAsync();
 ```
-
-> Note: `ShowServiceRegisterMetrics` is **true** by default.
 
 You can watch the [Server Example Project](examples/Aid.Microservice.Server.Example).
 
 ## Client
 
-#### Configuration
+#### Standalone (Console App)
 
-To access the server you need RpcClient:
-
-```csharp
-await using var client = new RpcClient("localhost", 5672, "user", "12345");
-await client.InitializeAsync();
-```
-
-#### Usage
-
-To make request call CallAsync or CallAsync<> with return type:
+For console applications, use `RpcClientFactory` to manage connections efficiently. The factory holds the TCP connection, while clients created by it are lightweight.
 
 ```csharp
-await client.CallAsync<int>("simple", "multiple", new {a = 5, b = 10});
-```
+// 1. Create factory (holds the connection)
+await using var rpcFactory = new RpcClientFactory("localhost", 5672, "guest", "guest");
 
-CallAsync accept 5 arguments:
-- Service (string, required)
-- Method (string, required)
-- Parameters (object, optional)
-- Timeout (TimeSpan, optional)
-- CancellationToken (CancellationToken, optional)
+// 2. Create a client bound to a specific service
+await using var simpleClient = factory.CreateClient("simple");
+
+// 3. Make calls
+try 
+{
+    var simpleResult = await simpleClient.CallAsync<int>("multiple", new {a = 5, b = 10});
+    Console.WriteLine(simpleResult);
+}
+catch (RpcCallException ex)
+{
+    Console.WriteLine($"RPC Error: {ex.Message}");
+}
+```
 
 You can watch the [Client Example Project](examples/Aid.Microservice.Client.Example).
 
@@ -213,31 +185,32 @@ You can watch the [Client Example Project](examples/Aid.Microservice.Client.Exam
 
 #### Configuration
 
-Register RpcClient as Service via AddMicroserviceClient extension:
+Register the client infrastructure in `Program.cs`. This registers `IRpcClientFactory` as a Singleton:
 
 ```csharp
-builder.Services.AddMicroserviceClient();
+// Loads configuration from "RabbitMqConfiguration" section
+builder.Services.AddAidMicroserviceClient();
 ```
 
-> Note: Add RabbitMqConfiguration section in `appsetting.json` using this method.
-
-Or pass RabbitMqConfiguration as parameter:
+Or pass configuration manually:
 
 ```csharp
-builder.Services.AddMicroserviceClient(new RabbitMqConfiguration(...));
+builder.Services.AddAidMicroserviceClient(config => 
+{
+    config.Hostname = "localhost";
+    config.ExchangeName = "my_custom_rpc";
+});
 ```
-
-> Note: RpcClient registered as Scope service.
 
 #### Usage
 
-Pass RpcClient as parameter and initialize first.
+Inject `IRpcClientFactory` into your controllers or services.
 
 ```csharp
-app.MapGet("/", async (RpcClient client) =>
+app.MapGet("/", async (IRpcClientFactory factory) =>
 {
-    await client.InitializeAsync();
-    return await client.CallAsync<string>("proxy", "multiplystring");
+    await using var proxyClient = factory.CreateClient("proxy");
+    return await proxyClient.CallAsync<string>("multiplystring");
 });
 ```
 

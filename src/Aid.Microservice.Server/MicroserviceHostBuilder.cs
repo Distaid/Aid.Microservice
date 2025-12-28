@@ -12,8 +12,7 @@ namespace Aid.Microservice.Server;
 public class MicroserviceHostBuilder : IMicroserviceHostBuilder
 {
     private readonly IHostBuilder _hostBuilder;
-    private IHost _host = null!;
-    
+    private IHost? _host;
     private bool _isBuilt;
 
     private MicroserviceHostBuilder(string[] args)
@@ -22,8 +21,7 @@ public class MicroserviceHostBuilder : IMicroserviceHostBuilder
             .ConfigureAppConfiguration((hostingContext, config) =>
             {
                 config.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
-                config.AddJsonFile($"appsettings.{hostingContext.HostingEnvironment.EnvironmentName}.json",
-                    optional: true, reloadOnChange: true);
+                config.AddJsonFile($"appsettings.{hostingContext.HostingEnvironment.EnvironmentName}.json", optional: true, reloadOnChange: true);
                 config.AddEnvironmentVariables(prefix: "RPC_");
                 config.AddCommandLine(args);
             })
@@ -31,13 +29,15 @@ public class MicroserviceHostBuilder : IMicroserviceHostBuilder
             {
                 logging.ClearProviders();
                 logging.AddConfiguration(hostingContext.Configuration.GetSection("Logging"));
-                logging.AddMicroserviceLogger(hostingContext);
+                logging.AddAidMicroserviceLogger(hostingContext);
             })
             .ConfigureServices((_, services) =>
             {
                 services.AddSerilog();
                 services.AddMemoryCache();
-                services.AddMicroservice(Assembly.GetEntryAssembly()!);
+                
+                var entryAssembly = Assembly.GetEntryAssembly() ?? throw new InvalidOperationException("Could not determine Entry Assembly.");
+                services.AddAidMicroservice(entryAssembly);
             });
     }
 
@@ -49,8 +49,8 @@ public class MicroserviceHostBuilder : IMicroserviceHostBuilder
     ///     "RabbitMqConfiguration": {
     ///         "Hostname": "localhost",
     ///         "Port": 5672,
-    ///         "Username": "user",
-    ///         "Password": "12345"
+    ///         "Username": "guest",
+    ///         "Password": "guest"
     ///     }
     /// }
     /// </code>
@@ -65,8 +65,7 @@ public class MicroserviceHostBuilder : IMicroserviceHostBuilder
     /// <inheritdoc/>
     public IMicroserviceHostBuilder ConfigureServices(Action<HostBuilderContext, IServiceCollection> configureDelegate)
     {
-        _hostBuilder
-            .ConfigureServices(configureDelegate);
+        _hostBuilder.ConfigureServices(configureDelegate);
         
         return this;
     }
@@ -87,12 +86,22 @@ public class MicroserviceHostBuilder : IMicroserviceHostBuilder
     /// <inheritdoc/>
     public void Run()
     {
-        _host.Run();
+        EnsureBuilt();
+        _host!.Run();
     }
 
     /// <inheritdoc/>
     public async Task RunAsync(CancellationToken token = default)
     {
-        await _host.RunAsync(token).ConfigureAwait(false);
+        EnsureBuilt();
+        await _host!.RunAsync(token).ConfigureAwait(false);
+    }
+    
+    private void EnsureBuilt()
+    {
+        if (!_isBuilt || _host == null)
+        {
+            throw new InvalidOperationException("Host is not built. Call Build() before Run()");
+        }
     }
 }

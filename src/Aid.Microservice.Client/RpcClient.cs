@@ -1,22 +1,33 @@
 using System.Collections.Concurrent;
-using System.Text;
 using System.Text.Json;
-using Aid.Microservice.Client.Configuration;
+using Aid.Microservice.Client.Infrastructure;
 using Aid.Microservice.Client.Models;
+using Aid.Microservice.Shared;
 using Aid.Microservice.Shared.Models;
+using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 
 namespace Aid.Microservice.Client;
 
-public class RpcClient : IAsyncDisposable
+public class RpcClient : IRpcClient
 {
-    private readonly ConnectionFactory _connectionFactory;
-    private IChannel _channel = null!;
-    private IConnection _connection = null!;
-    private string _replyQueueName = null!;
-    private AsyncEventingBasicConsumer _consumer = null!;
-    private readonly ConcurrentDictionary<string, TaskCompletionSource<string>> _callbackMapper = new();
+    private readonly IRabbitMqConnectionService _connectionService;
+    private readonly ILogger _logger;
+    private readonly bool _ownsConnectionService;
+    
+    private readonly string _targetServiceName;
+    private readonly string _exchangeName;
+    
+    private IChannel? _publishChannel;
+    private readonly SemaphoreSlim _publishLock = new(1, 1);
+    
+    private IChannel? _subscribeChannel;
+    private string? _replyQueueName;
+    private AsyncEventingBasicConsumer? _consumer;
+    
+    private readonly ConcurrentDictionary<string, TaskCompletionSource<byte[]>> _callbackMapper = new();
+    private bool _isInitialized;
     
     private readonly JsonSerializerOptions _jsonOptions = new()
     {
@@ -24,44 +35,53 @@ public class RpcClient : IAsyncDisposable
         PropertyNamingPolicy = null
     };
     
-    public RpcClient(RabbitMqConfiguration configuration)
-        : this(configuration.Hostname, configuration.Port, configuration.Username, configuration.Password)
-    { }
-    
-    public RpcClient(string hostName, int port, string userName, string password)
+    public RpcClient(
+        IRabbitMqConnectionService connectionService,
+        ILogger<RpcClient> logger,
+        string targetServiceName,
+        string exchangeName,
+        bool ownsConnectionService = false)
     {
-        _connectionFactory = new ConnectionFactory
-        {
-            HostName = hostName,
-            UserName = userName,
-            Password = password,
-            Port = port
-        };
+        _connectionService = connectionService;
+        _logger = logger;
+        _targetServiceName = targetServiceName;
+        _exchangeName = exchangeName;
+        _ownsConnectionService = ownsConnectionService;
     }
-    
-    /// <summary>
-    /// Initialize connection to RabbitMq queue
-    /// </summary>
-    public async Task InitializeAsync()
+
+    public async Task InitializeAsync(CancellationToken token = default)
     {
-        try
+        if (_isInitialized)
         {
-            _connection = await _connectionFactory.CreateConnectionAsync();
-            _channel = await _connection.CreateChannelAsync();
+            return;
+        }
+
+        if (!await _connectionService.TryConnectAsync(token))
+        {
+            throw new InvalidOperationException("RPC Client failed to connect to RabbitMQ.");
+        }
+
+        _publishChannel = await _connectionService.CreateChannelAsync(token);
+        _subscribeChannel = await _connectionService.CreateChannelAsync(token);
+
+        var queueResult = await _subscribeChannel.QueueDeclareAsync(
+            queue: "", 
+            durable: false, 
+            exclusive: true, 
+            autoDelete: true, 
+            arguments: null,
+            cancellationToken: token);
             
-            _replyQueueName = (await _channel.QueueDeclareAsync(queue: "", durable: false, exclusive: true, autoDelete: true)).QueueName;
-            _consumer = new AsyncEventingBasicConsumer(_channel);
+        _replyQueueName = queueResult.QueueName;
 
-            _consumer.ReceivedAsync += OnResponseReceivedAsync;
+        _consumer = new AsyncEventingBasicConsumer(_subscribeChannel);
+        _consumer.ReceivedAsync += OnResponseReceivedAsync;
 
-            await _channel.BasicConsumeAsync(consumer: _consumer, queue: _replyQueueName, autoAck: true);
-        }
-        catch (Exception)
-        {
-            _channel.Dispose();
-            _connection.Dispose();
-            throw;
-        }
+        await _subscribeChannel.BasicConsumeAsync(queue: _replyQueueName, autoAck: true, consumer: _consumer, cancellationToken: token);
+
+        _isInitialized = true;
+        _logger.LogInformation("RPC Client initialized. Bound to service: {Service}. Reply Queue: {Queue}", 
+            _targetServiceName ?? "<ANY>", _replyQueueName);
     }
     
     private async Task OnResponseReceivedAsync(object sender, BasicDeliverEventArgs ea)
@@ -70,158 +90,123 @@ public class RpcClient : IAsyncDisposable
         if (!string.IsNullOrEmpty(correlationId) && _callbackMapper.TryRemove(correlationId, out var tcs))
         {
             var body = ea.Body.ToArray();
-            var responseJson = Encoding.UTF8.GetString(body);
-            tcs.TrySetResult(responseJson);
+            tcs.TrySetResult(body);
         }
-
         await Task.CompletedTask;
     }
     
-    /// <summary>
-    /// Makes a request that returns nothing
-    /// </summary>
-    /// <param name="service">Service name</param>
-    /// <param name="method">Method name in service</param>
-    /// <param name="parameters">Request data object</param>
-    /// <param name="timeout">Response waiting limit</param>
-    /// <param name="cancellationToken">Notification that operations should be canceled</param>
-    public async Task CallAsynс(
-        string service,
-        string method,
-        object? parameters = null,
-        TimeSpan? timeout = null,
-        CancellationToken cancellationToken = default)
+    public Task CallAsync(string method, object? parameters = null, TimeSpan? timeout = null, CancellationToken cancellationToken = default)
     {
-        await CallAsync<int>(service, method, parameters, timeout, cancellationToken);
+        EnsureTargetServiceBound();
+        return CallAsync<object>(method, parameters, timeout, cancellationToken);
     }
     
-    /// <summary>
-    /// Makes a request that returns result
-    /// </summary>
-    /// <param name="service">Service name</param>
-    /// <param name="method">Method name in service</param>
-    /// <param name="parameters">Request data object</param>
-    /// <param name="timeout">Response waiting limit</param>
-    /// <param name="cancellationToken">Notification that operations should be canceled</param>
-    /// <typeparam name="TResponse">Response type, always can be null</typeparam>
-    /// <returns></returns>
-    /// <exception cref="InvalidOperationException">Failed to register callback due to duplicate CorrelationId</exception>
-    /// <exception cref="RpcCallException">Something go wrong in service method or incorrect response type</exception>
-    /// <exception cref="TimeoutException">Request execution is longer then timeout</exception>
+    private void EnsureTargetServiceBound()
+    {
+        if (string.IsNullOrEmpty(_targetServiceName))
+        {
+            throw new InvalidOperationException(
+                "This RpcClient is not bound to a specific service. " +
+                "Use the overload CallAsync(serviceName, methodName, ...) or create the client via CreateClient(\"serviceName\")");
+        }
+    }
+    
     public async Task<TResponse?> CallAsync<TResponse>(
-        string service,
         string method,
         object? parameters = null,
         TimeSpan? timeout = null,
         CancellationToken cancellationToken = default)
     {
-        var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        if (timeout.HasValue)
+        if (!_isInitialized)
         {
-            cts.CancelAfter(timeout.Value);
+            await InitializeAsync(cancellationToken);
         }
+
+        var effectiveTimeout = timeout ?? TimeSpan.FromSeconds(30);
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        cts.CancelAfter(effectiveTimeout);
 
         var correlationId = Guid.NewGuid().ToString("N");
-        var props = new BasicProperties
-        {
-            CorrelationId = correlationId,
-            ReplyTo = _replyQueueName
-        };
+        var tcs = new TaskCompletionSource<byte[]>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        var request = new RpcRequest
-        {
-            Method = method.ToLowerInvariant(),
-            Parameters = ConvertParametersToObjectDictionary(parameters)
-        };
-
-        var messageBytes = JsonSerializer.SerializeToUtf8Bytes(request, _jsonOptions);
-        var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        if (!_callbackMapper.TryAdd(correlationId, tcs))
-        {
-            cts.Dispose();
-            throw new InvalidOperationException("Failed to register callback due to duplicate CorrelationId.");
-        }
-
-        var targetQueue = $"rpc_aid_{service.ToLowerInvariant()}";
+        if (!_callbackMapper.TryAdd(correlationId, tcs)) throw new InvalidOperationException("CorrelationId collision");
 
         try
         {
-            await _channel.BasicPublishAsync(exchange: "", routingKey: targetQueue, basicProperties: props, body: messageBytes, mandatory: true, cancellationToken: cts.Token);
-
-            await using var registration = cts.Token.Register(() =>
+            var request = new RpcRequest
             {
-                if (!_callbackMapper.TryRemove(correlationId, out var timedOutTcs))
-                {
-                    return;
-                }
-
-                timedOutTcs.TrySetCanceled(cts.Token);
-            });
-
-            var responseJson = await tcs.Task.ConfigureAwait(false);
-
-            var rpcResponse = JsonSerializer.Deserialize<RpcResponse>(responseJson, _jsonOptions);
-
-            if (rpcResponse == null)
-            {
-                throw new RpcCallException("Received null or invalid response from server", correlationId);
-            }
-
-            if (rpcResponse.Error != null)
-            {
-                throw new RpcCallException(rpcResponse.Error, correlationId);
-            }
-
-            return rpcResponse.Result switch
-            {
-                JsonElement { ValueKind: JsonValueKind.Null } when typeof(TResponse).IsClass => default,
-                JsonElement resultElement => resultElement.Deserialize<TResponse>(_jsonOptions),
-                null => default,
-                _ => throw new RpcCallException($"Unexpected result type '{rpcResponse.Result.GetType().Name}' in response", correlationId)
+                Method = method.ToLowerInvariant(),
+                Parameters = ConvertParameters(parameters)
             };
+            var body = JsonSerializer.SerializeToUtf8Bytes(request, _jsonOptions);
+            
+            var props = new BasicProperties { CorrelationId = correlationId, ReplyTo = _replyQueueName };
+
+            await _publishLock.WaitAsync(cts.Token);
+            try
+            {
+                await _publishChannel!.BasicPublishAsync(exchange: _exchangeName, routingKey: _targetServiceName, mandatory: true, basicProperties: props, body: body, cancellationToken: cts.Token);
+            }
+            finally
+            {
+                _publishLock.Release();
+            }
+
+            await using (cts.Token.Register(() => { if (_callbackMapper.TryRemove(correlationId, out var r)) r.TrySetCanceled(); }))
+            {
+                var responseBytes = await tcs.Task.ConfigureAwait(false);
+                return HandleResponse<TResponse>(responseBytes, correlationId);
+            }
         }
-        catch (TaskCanceledException ex)
+        catch (OperationCanceledException)
         {
-            throw new TimeoutException(
-                $"RPC call timed out or was cancelled after {timeout?.TotalSeconds ?? 0} seconds. CorrelationId: {correlationId}",
-                ex);
+            throw new TimeoutException($"RPC call to {_targetServiceName}.{method} timed out.");
         }
-        catch (Exception)
+        catch
         {
             _callbackMapper.TryRemove(correlationId, out _);
             throw;
         }
-        finally
-        {
-            cts.Dispose();
-        }
     }
     
-    private Dictionary<string, JsonElement>? ConvertParametersToObjectDictionary(object? parameters)
+    private TResponse? HandleResponse<TResponse>(byte[] responseBytes, string correlationId)
+    {
+        var response = JsonSerializer.Deserialize<RpcResponse>(responseBytes, _jsonOptions);
+        if (response == null)
+        {
+            throw new RpcCallException("Empty response", correlationId);
+        }
+
+        if (!response.IsSuccess)
+        {
+            throw new RpcCallException(response.Error!, correlationId);
+        }
+
+        if (response.Result is JsonElement je)
+        {
+            return je.Deserialize<TResponse>(_jsonOptions);
+        }
+
+        if (response.Result is TResponse tr)
+        {
+            return tr;
+        }
+        
+        var json = JsonSerializer.Serialize(response.Result, _jsonOptions);
+        return JsonSerializer.Deserialize<TResponse>(json, _jsonOptions);
+    }
+    
+    private Dictionary<string, JsonElement>? ConvertParameters(object? parameters)
     {
         if (parameters == null)
         {
             return null;
         }
-
-        try
-        {
-            using var jsonDoc = JsonSerializer.SerializeToDocument(parameters, _jsonOptions);
-
-            if (jsonDoc.RootElement.ValueKind == JsonValueKind.Object)
-            {
-                return jsonDoc.RootElement
-                    .EnumerateObject()
-                    .ToDictionary(p => p.Name, p => p.Value.Clone(),  StringComparer.OrdinalIgnoreCase);
-            }
-
-            return null;
-        }
-        catch (Exception ex)
-        {
-            throw new ArgumentException("Failed to convert parameters object for RPC call", ex);
-        }
+        
+        using var doc = JsonSerializer.SerializeToDocument(parameters, _jsonOptions);
+        return doc.RootElement.ValueKind == JsonValueKind.Object
+            ? doc.RootElement.EnumerateObject().ToDictionary(p => p.Name, p => p.Value.Clone(), StringComparer.OrdinalIgnoreCase)
+            : null;
     }
     
     public async ValueTask DisposeAsync()
@@ -230,13 +215,24 @@ public class RpcClient : IAsyncDisposable
         {
             tcs.TrySetCanceled();
         }
-
         _callbackMapper.Clear();
+        _publishLock.Dispose();
 
-        await _channel.CloseAsync();
-        await _channel.DisposeAsync();
-        await _connection.CloseAsync();
-        await _connection.DisposeAsync();
+        if (_publishChannel != null)
+        {
+            await _publishChannel.DisposeAsync();
+        }
+
+        if (_subscribeChannel != null)
+        {
+            await _subscribeChannel.DisposeAsync();
+        }
+
+        if (_ownsConnectionService)
+        {
+            await _connectionService.DisposeAsync();
+        }
+        
         GC.SuppressFinalize(this);
     }
 }

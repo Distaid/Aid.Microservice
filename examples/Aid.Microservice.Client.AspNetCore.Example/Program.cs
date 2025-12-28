@@ -1,16 +1,16 @@
-using Aid.Microservice.Client;
 using Aid.Microservice.Client.AspNetCore;
+using Aid.Microservice.Client.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddMicroserviceClient();
+builder.Services.AddAidMicroserviceClient();
 
 var app = builder.Build();
 
-app.MapGet("/", async (RpcClient client) =>
+app.MapGet("/", async (IRpcClientFactory factory) =>
 {
-    await client.InitializeAsync();
-    return await client.CallAsync<string>("proxy", "multiplystring");
+    await using var proxyClient = factory.CreateClient("proxy");
+    return await proxyClient.CallAsync<string>("multiplystring");
 });
 
 app.Run();

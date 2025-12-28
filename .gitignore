@@ -50,4 +50,5 @@ publish/
 
 # JetBrains Rider
 *.sln.iml
+*.DotSettings.user
 .idea/

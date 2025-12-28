@@ -2,8 +2,8 @@
 
 namespace Aid.Microservice.Shared.Models;
 
-public class RpcRequest
+public record RpcRequest
 {
-    public string Method { get; set; } = string.Empty;
-    public Dictionary<string, JsonElement>? Parameters { get; set; }
+    public string Method { get; init; } = string.Empty;
+    public Dictionary<string, JsonElement>? Parameters { get; init; }
 }

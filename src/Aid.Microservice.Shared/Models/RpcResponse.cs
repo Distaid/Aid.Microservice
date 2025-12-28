@@ -1,9 +1,14 @@
-﻿namespace Aid.Microservice.Shared.Models;
+﻿using System.Text.Json.Serialization;
 
-public class RpcResponse
+namespace Aid.Microservice.Shared.Models;
+
+public record RpcResponse
 {
-    public object? Result { get; set; }
+    public object? Result { get; init; }
+    
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public RpcError? Error { get; set; }
 
+    [JsonIgnore]
     public bool IsSuccess => Error == null;
 }

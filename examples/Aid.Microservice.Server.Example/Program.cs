@@ -1,6 +1,11 @@
 ﻿using Aid.Microservice.Server;
 
-MicroserviceHostBuilder
+await MicroserviceHostBuilder
     .CreateBuilder(args)
+    .ConfigureServices((context, services) => 
+    {
+        // For example:
+        // services.AddDbContext<AppDbContext>(...);
+    })
     .Build()
-    .Run();
+    .RunAsync();

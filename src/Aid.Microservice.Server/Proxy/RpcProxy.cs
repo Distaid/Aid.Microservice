@@ -1,21 +1,20 @@
-﻿using Aid.Microservice.Client;
+﻿using Aid.Microservice.Client.Infrastructure;
 
 namespace Aid.Microservice.Server.Proxy;
 
-public class RpcProxy : IRpcProxy
+public class RpcProxy(IRpcClient client) : IRpcProxy
 {
-    private readonly string _targetServiceName;
-    private readonly RpcClient _rpcClient;
-
-    public RpcProxy(string targetServiceName, RpcClient rpcClient)
+    public Task CallAsync(
+        string method,
+        object? parameters = null,
+        TimeSpan? timeout = null,
+        CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(targetServiceName))
-        {
-            throw new ArgumentNullException(nameof(targetServiceName));
-        }
-
-        _targetServiceName = targetServiceName.ToLowerInvariant();
-        _rpcClient = rpcClient ?? throw new ArgumentNullException(nameof(rpcClient));
+        return client.CallAsync(
+            method,
+            parameters,
+            timeout,
+            cancellationToken);
     }
     
     public Task<TResponse?> CallAsync<TResponse>(
@@ -24,22 +23,7 @@ public class RpcProxy : IRpcProxy
         TimeSpan? timeout = null,
         CancellationToken cancellationToken = default)
     {
-        return _rpcClient.CallAsync<TResponse>(
-            _targetServiceName,
-            method,
-            parameters,
-            timeout,
-            cancellationToken);
-    }
-    
-    public Task CallAsync(
-        string method,
-        object? parameters = null,
-        TimeSpan? timeout = null,
-        CancellationToken cancellationToken = default)
-    {
-        return _rpcClient.CallAsync<int>(
-            _targetServiceName,
+        return client.CallAsync<TResponse>(
             method,
             parameters,
             timeout,

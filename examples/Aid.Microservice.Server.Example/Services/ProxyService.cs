@@ -4,15 +4,10 @@ using Aid.Microservice.Shared.Attributes;
 namespace Aid.Microservice.Server.Example.Services;
 
 [Microservice]
-public class ProxyService
+public class ProxyService(IRpcProxyFactory factory)
 {
-    private readonly IRpcProxy _multipleProxy;
-    
-    public ProxyService(IRpcProxyFactory factory)
-    {
-        _multipleProxy = factory.CreateProxy("simple");
-    }
-    
+    private readonly IRpcProxy _multipleProxy = factory.CreateProxy("simple");
+
     [RpcCallable]
     public async Task<string> MultiplyString()
     {

@@ -6,8 +6,5 @@ namespace Aid.Microservice.Server.Example.Services;
 public class NamedService
 {
     [RpcCallable("and_me")]
-    public int Subtract(int a, int b)
-    {
-        return a - b;
-    }
+    public int Subtract(int a, int b) => a - b;
 }

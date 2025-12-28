@@ -1,7 +1,9 @@
-﻿namespace Aid.Microservice.Server.Proxy;
+namespace Aid.Microservice.Client.Infrastructure;
 
-public interface IRpcProxy
+public interface IRpcClient : IAsyncDisposable
 {
+    Task InitializeAsync(CancellationToken token = default);
+    
     Task CallAsync(
         string method,
         object? parameters = null,

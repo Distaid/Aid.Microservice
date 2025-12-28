@@ -1,29 +1,27 @@
-﻿namespace Aid.Microservice.Shared.Models;
+﻿using System.Text.Json.Serialization;
 
-public class RpcError
+namespace Aid.Microservice.Shared.Models;
+
+public record RpcError
 {
-    public string Message { get; set; } = null!;
-    public string? StackTrace { get; set; }
-    public string? ErrorType { get; set; }
+    public string Message { get; init; }
+    public string? ErrorType { get; init; }
+    
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? StackTrace { get; init; }
 
-    public RpcError() { }
-
-    public RpcError(string message, string? stackTrace = null, string? errorType = null)
+    [JsonConstructor]
+    public RpcError(string message, string? errorType = null, string? stackTrace = null)
     {
         Message = message;
-        StackTrace = stackTrace;
         ErrorType = errorType;
+        StackTrace = stackTrace;
     }
-
+    
     public RpcError(Exception ex, bool includeStackTrace = false)
     {
         Message = ex.Message;
         ErrorType = ex.GetType().Name;
-
-        if (includeStackTrace)
-        {
-            StackTrace = ex.StackTrace;
-        }
+        StackTrace = includeStackTrace ? ex.StackTrace : null;
     }
-
 }
