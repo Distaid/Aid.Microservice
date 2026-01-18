@@ -156,7 +156,7 @@ public class RabbitMqConnectionService : IRabbitMqConnectionService
             {
                 try
                 {
-                    _connection.Dispose();
+                    await _connection.DisposeAsync();
                 }
                 catch
                 {
