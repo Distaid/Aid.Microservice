@@ -3,7 +3,6 @@ using System.Text.Json;
 using Aid.Microservice.Client.Infrastructure;
 using Aid.Microservice.Client.Models;
 using Aid.Microservice.Shared.Interfaces;
-using Aid.Microservice.Shared.Models;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
