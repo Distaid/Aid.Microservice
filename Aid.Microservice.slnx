@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/examples/">
+    <Project Path="examples/Aid.Microservice.Client.AspNetCore.Example/Aid.Microservice.Client.AspNetCore.Example.csproj" />
+    <Project Path="examples/Aid.Microservice.Client.Example/Aid.Microservice.Client.Example.csproj" />
+    <Project Path="examples/Aid.Microservice.Server.Example/Aid.Microservice.Server.Example.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/Aid.Microservice.Client.AspNetCore/Aid.Microservice.Client.AspNetCore.csproj" />
+    <Project Path="src/Aid.Microservice.Client/Aid.Microservice.Client.csproj" />
+    <Project Path="src/Aid.Microservice.Server/Aid.Microservice.Server.csproj" />
+    <Project Path="src/Aid.Microservice.Shared/Aid.Microservice.Shared.csproj" />
+  </Folder>
+</Solution>
