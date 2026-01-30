@@ -76,16 +76,9 @@ public class RpcRequestDispatcher(
             
             JsonElement? jsonValue = null;
             
-            if (inputParams != null)
+            if (inputParams != null && inputParams.TryGetValue(paramName, out var paramValue))
             {
-                foreach (var kvp in inputParams)
-                {
-                    if (string.Equals(kvp.Key, paramName, StringComparison.OrdinalIgnoreCase))
-                    {
-                        jsonValue = kvp.Value;
-                        break;
-                    }
-                }
+                jsonValue = paramValue;
             }
             
             if (jsonValue.HasValue)
