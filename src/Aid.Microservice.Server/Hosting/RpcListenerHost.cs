@@ -21,7 +21,7 @@ public class RpcListenerHost(
     : BackgroundService
 {
     private readonly RabbitMqConfiguration _rabbitConfig = rabbitConfig.Value;
-    private readonly List<IChannel> _activeChannels = new();
+    private readonly List<IChannel> _activeChannels = [];
     
     private readonly JsonSerializerOptions _jsonOptions = new()
     {
