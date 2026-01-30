@@ -161,15 +161,37 @@ public class RpcEndpointRegistry(ILogger<RpcEndpointRegistry> logger) : IRpcEndp
         return lambda.Compile();
     }
     
-    private static async Task<object?> WrapVoidTaskAsync(Task task)
+    private static Task<object?> WrapVoidTaskAsync(Task task)
     {
-        await task.ConfigureAwait(false);
-        return null;
+        if (task.Status == TaskStatus.RanToCompletion)
+        {
+            return Task.FromResult<object?>(null);
+        }
+        
+        return task.ContinueWith(
+            t => 
+            {
+                t.GetAwaiter().GetResult();
+                return (object?)null; 
+            },
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default
+        );
     }
-    
-    private static async Task<object?> WrapGenericTaskAsync<T>(Task<T> task)
+
+    private static Task<object?> WrapGenericTaskAsync<T>(Task<T> task)
     {
-        var result = await task.ConfigureAwait(false);
-        return result;
+        if (task.Status == TaskStatus.RanToCompletion)
+        {
+            return Task.FromResult((object?)task.Result);
+        }
+
+        return task.ContinueWith(
+            t => (object?)t.GetAwaiter().GetResult(),
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default
+        );
     }
 }
