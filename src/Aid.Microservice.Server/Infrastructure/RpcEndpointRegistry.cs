@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq.Expressions;
 using System.Reflection;
 using Aid.Microservice.Server.Contracts;
@@ -7,6 +8,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Aid.Microservice.Server.Infrastructure;
 
+[RequiresUnreferencedCode("This implementation uses Reflection and is not safe for NativeAOT.")]
 public class RpcEndpointRegistry(ILogger<RpcEndpointRegistry> logger) : IRpcEndpointRegistry
 {
     private readonly ConcurrentDictionary<string, Dictionary<string, RpcMethodInfo>> _endpoints = new(StringComparer.OrdinalIgnoreCase);
