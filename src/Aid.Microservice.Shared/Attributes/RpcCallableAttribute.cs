@@ -13,6 +13,13 @@ public class RpcCallableAttribute : Attribute
     public string MethodName { get; private set; } = null!;
 
     /// <summary>
+    /// Custom serializer type for this method.
+    /// Takes priority over <see cref="MicroserviceAttribute.SerializerType"/>.
+    /// Must implement <see cref="Shared.Interfaces.IRequestSerializer"/>.
+    /// </summary>
+    public Type? SerializerType { get; init; }
+
+    /// <summary>
     /// Mark method as microservice method.
     /// </summary>
     /// <param name="alias">Name for method. Used name of method as default</param>

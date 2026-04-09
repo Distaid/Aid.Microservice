@@ -29,7 +29,13 @@ public class RpcRequestDispatcher(
             {
                 throw new MissingMethodException($"Method '{methodName}' not found in service '{serviceName}'");
             }
-            
+
+            var paramStr = parameters != null
+                ? JsonSerializer.Serialize(parameters, _jsonOptions)
+                : "none";
+
+            logger.LogInformation("Invoking {Service}.{Method} with parameters: {Parameters}", serviceName, methodName, paramStr);
+
             using var scope = serviceProvider.CreateScope();
             var serviceInstance = scope.ServiceProvider.GetService(endpointInfo.ServiceType);
             

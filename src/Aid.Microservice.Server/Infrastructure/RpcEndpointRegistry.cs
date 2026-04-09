@@ -4,14 +4,20 @@ using System.Linq.Expressions;
 using System.Reflection;
 using Aid.Microservice.Server.Contracts;
 using Aid.Microservice.Shared.Attributes;
+using Aid.Microservice.Shared.Interfaces;
 using Microsoft.Extensions.Logging;
 
 namespace Aid.Microservice.Server.Infrastructure;
 
 [RequiresUnreferencedCode("This implementation uses Reflection and is not safe for NativeAOT.")]
-public class RpcEndpointRegistry(ILogger<RpcEndpointRegistry> logger) : IRpcEndpointRegistry
+public class RpcEndpointRegistry(
+    ILogger<RpcEndpointRegistry> logger,
+    ISerializerRegistry serializerRegistry,
+    IRpcProtocol protocol)
+    : IRpcEndpointRegistry
 {
     private readonly ConcurrentDictionary<string, Dictionary<string, RpcMethodInfo>> _endpoints = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, HashSet<string>> _serviceExchanges = new(StringComparer.OrdinalIgnoreCase);
 
     public void ScanAssemblies(Assembly assembly)
     {
@@ -39,25 +45,28 @@ public class RpcEndpointRegistry(ILogger<RpcEndpointRegistry> logger) : IRpcEndp
                 var attr = method.GetCustomAttribute<RpcCallableAttribute>()!;
                 attr.SetMethodName(method);
                 var methodName = attr.MethodName;
-                
+
                 if (methodDict.ContainsKey(methodName))
                 {
                     logger.LogWarning("Duplicate RPC method alias '{Method}' in service '{Service}'. Ignoring overload", methodName, serviceName);
                     continue;
                 }
-                
-                try 
+
+                try
                 {
                     var fastDelegate = CreateMethodDelegate(serviceType, method);
-                    
+
+                    var serializerType = attr.SerializerType ?? serviceAttr.SerializerType;
+
                     methodDict[methodName] = new RpcMethodInfo(
                         ServiceType: serviceType,
                         Method: method,
                         Parameters: method.GetParameters(),
-                        FastInvoke: fastDelegate
+                        FastInvoke: fastDelegate,
+                        SerializerType: serializerType
                     );
-                    
-                    logger.LogDebug("Registered RPC method: {Service}.{Method}", serviceName, methodName);
+
+                    logger.LogDebug("Registered RPC method: {Service}.{Method} (Serializer: {Serializer})", serviceName, methodName, serializerType?.Name ?? "default");
                 }
                 catch (Exception ex)
                 {
@@ -71,6 +80,11 @@ public class RpcEndpointRegistry(ILogger<RpcEndpointRegistry> logger) : IRpcEndp
                 {
                     totalServices++;
                     totalMethods += methodDict.Count;
+
+                    var exchanges = ResolveExchanges(serviceAttr, methodDict);
+                    _serviceExchanges[serviceName] = exchanges;
+
+                    logger.LogDebug("Service '{Service}' exchanges: {Exchanges}", serviceName, string.Join(", ", exchanges));
                 }
                 else
                 {
@@ -88,7 +102,59 @@ public class RpcEndpointRegistry(ILogger<RpcEndpointRegistry> logger) : IRpcEndp
         return _endpoints.TryGetValue(serviceName, out var methods) && methods.TryGetValue(methodName, out endpointInfo);
     }
     
-    public IEnumerable<string> GetRegisteredServices() => _endpoints.Keys;
+    public IEnumerable<(string ServiceName, string ExchangeName)> GetRegisteredServiceEndpoints()
+    {
+        foreach (var (serviceName, exchanges) in _serviceExchanges)
+        {
+            foreach (var exchange in exchanges)
+            {
+                yield return (serviceName, exchange);
+            }
+        }
+    }
+
+    private HashSet<string> ResolveExchanges(MicroserviceAttribute serviceAttr, Dictionary<string, RpcMethodInfo> methods)
+    {
+        var exchanges = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        if (serviceAttr.Exchanges is { Length: > 0 })
+        {
+            foreach (var ex in serviceAttr.Exchanges)
+            {
+                if (!string.IsNullOrWhiteSpace(ex))
+                {
+                    exchanges.Add(ex);
+                }
+            }
+        }
+
+        if (exchanges.Count == 0 && !string.IsNullOrWhiteSpace(serviceAttr.ExchangeName))
+        {
+            exchanges.Add(serviceAttr.ExchangeName!);
+        }
+
+        if (exchanges.Count == 0)
+        {
+            foreach (var method in methods.Values)
+            {
+                var exchangeName = method.SerializerType != null
+                    ? serializerRegistry.GetSerializer(method.SerializerType)?.ExchangeName
+                    : protocol.DefaultSerializer.ExchangeName;
+
+                if (!string.IsNullOrWhiteSpace(exchangeName))
+                {
+                    exchanges.Add(exchangeName);
+                }
+            }
+        }
+
+        if (exchanges.Count == 0)
+        {
+            exchanges.Add(protocol.DefaultSerializer.ExchangeName ?? "aid_rpc");
+        }
+
+        return exchanges;
+    }
     
     private static Func<object, object?[], Task<object?>> CreateMethodDelegate(Type serviceType, MethodInfo method)
     {

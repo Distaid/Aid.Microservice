@@ -11,6 +11,24 @@ public class MicroserviceAttribute : Attribute
     public string ServiceName { get; private set; } = string.Empty;
 
     /// <summary>
+    /// Custom serializer type for all methods in this service.
+    /// Must implement <see cref="Shared.Interfaces.IRequestSerializer"/>.
+    /// </summary>
+    public Type? SerializerType { get; init; }
+
+    /// <summary>
+    /// Explicit exchange name for this service.
+    /// When set, all methods in this service use this exchange.
+    /// </summary>
+    public string? ExchangeName { get; init; }
+
+    /// <summary>
+    /// Explicit exchange names for this service.
+    /// Useful when a service has methods with different serializers (e.g. Default + Nameko).
+    /// </summary>
+    public string[]? Exchanges { get; init; }
+
+    /// <summary>
     /// Mark class as microservice.
     /// </summary>
     /// <param name="alias">Name for service. Used name of class as default</param>

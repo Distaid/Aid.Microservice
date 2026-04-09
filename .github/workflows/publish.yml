@@ -24,10 +24,10 @@ jobs:
         run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
           
       - name: Restore dependencies
-        run: dotnet restore ./Aid.Microservice.sln
-        
+        run: dotnet restore ./Aid.Microservice.slnx
+
       - name: Build solution
-        run: dotnet build ./Aid.Microservice.sln --configuration Release --no-restore -p:Version=${{ env.VERSION }}
+        run: dotnet build ./Aid.Microservice.slnx --configuration Release --no-restore -p:Version=${{ env.VERSION }}
         
       - name: Pack and Push Shared
         run: |

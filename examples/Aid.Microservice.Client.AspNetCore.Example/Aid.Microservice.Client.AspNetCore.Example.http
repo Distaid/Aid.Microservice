@@ -1,6 +1,15 @@
 @HostAddress = http://localhost:5288
 
+### Default protocol — proxy service
 GET {{HostAddress}}/
 Accept: text/plain
+
+### Nameko protocol — nameko_service
+GET {{HostAddress}}/nameko
+Accept: text/plain
+
+### Mixed service — both Nameko and Default protocols
+GET {{HostAddress}}/mixed
+Accept: application/json
 
 ###

@@ -3,6 +3,11 @@ using Aid.Microservice.Shared.Attributes;
 
 namespace Aid.Microservice.Server.Example.Services;
 
+/// <summary>
+/// Demonstrates interservice communication via RpcProxyFactory.
+/// A service can call another service on the same server using IRpcProxy,
+/// enabling composition and delegation patterns.
+/// </summary>
 [Microservice]
 public class ProxyService(IRpcProxyFactory factory)
 {

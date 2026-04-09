@@ -9,12 +9,17 @@
     <PackageId>Aid.Microservice.Client.AspNetCore</PackageId>
     <Version>2.0.0</Version>
     <Authors>Distaid</Authors>
-    <Description>DI for Rpc Client in AspNetCore projects.</Description>
+    <Description>ASP.NET Core integration for Aid.Microservice RPC client. Provides DI-based registration with a shared connection pool for web applications.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/Distaid/Aid.Microservice</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
-    <PackageTags>rabbitmq, rpc, microservice, net, core</PackageTags>
+    <PackageTags>rabbitmq, rpc, microservice, aspnetcore, dependency-injection, net, core</PackageTags>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\..\docs\client.aspnetcore.README.md" Pack="true" PackagePath="README.md" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Aid.Microservice.Client\Aid.Microservice.Client.csproj" />

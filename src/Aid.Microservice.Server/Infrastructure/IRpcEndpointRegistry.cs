@@ -7,5 +7,5 @@ public interface IRpcEndpointRegistry
 {
     void ScanAssemblies(Assembly assembly);
     bool TryGetMethod(string serviceName, string methodName, out RpcMethodInfo? methodInfo);
-    IEnumerable<string> GetRegisteredServices();
+    IEnumerable<(string ServiceName, string ExchangeName)> GetRegisteredServiceEndpoints();
 }

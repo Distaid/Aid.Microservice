@@ -6,4 +6,5 @@ public record RpcMethodInfo(
     Type ServiceType,
     MethodInfo Method,
     ParameterInfo[] Parameters,
-    Func<object, object?[], Task<object?>> FastInvoke);
+    Func<object, object?[], Task<object?>> FastInvoke,
+    Type? SerializerType);

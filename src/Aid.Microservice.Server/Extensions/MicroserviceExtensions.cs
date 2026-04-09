@@ -33,22 +33,25 @@ public static class MicroserviceExtensions
             
             services.TryAddSingleton<IRabbitMqConnectionService, RabbitMqConnectionService>();
             services.TryAddSingleton<IRpcRequestDispatcher, RpcRequestDispatcher>();
-            
+            services.TryAddSingleton<ISerializerRegistry, SerializerRegistry>();
+
             services.TryAddSingleton<IRpcEndpointRegistry>(sp =>
             {
                 var logger = sp.GetRequiredService<ILogger<RpcEndpointRegistry>>();
-                var registry = new RpcEndpointRegistry(logger);
-            
+                var serializerRegistry = sp.GetRequiredService<ISerializerRegistry>();
+                var protocol = sp.GetRequiredService<IRpcProtocol>();
+                var registry = new RpcEndpointRegistry(logger, serializerRegistry, protocol);
+
                 registry.ScanAssemblies(assemblyToScan);
-            
+
                 return registry;
             });
-            
+
             RegisterServiceClasses(services, assemblyToScan);
-            
+
             services.TryAddSingleton<IRpcProtocol, DefaultJsonProtocol>();
-            services.TryAddSingleton<IRpcProxyFactory, RpcProxyFactory>(); 
-            services.TryAddSingleton<IRpcClientFactory, RpcClientFactory>(); 
+            services.TryAddSingleton<IRpcProxyFactory, RpcProxyFactory>();
+            services.TryAddSingleton<IRpcClientFactory, RpcClientFactory>();
             
             services.AddHostedService<RpcListenerHost>();
             
@@ -56,15 +59,16 @@ public static class MicroserviceExtensions
         }
         
         /// <summary>
-        /// Register RPC protocol
+        /// Register RPC protocol. Can be called before or after <see cref="AddAidMicroservice"/>.
         /// </summary>
         /// <typeparam name="TProtocol">Realization of <see cref="IRpcProtocol"/> interface</typeparam>
         /// <returns>The same instance of the <see cref="T:Microsoft.Extensions.DependencyInjection.IServiceCollection" /> for chaining</returns>
         public IServiceCollection AddAidMicroserviceProtocol<TProtocol>()
             where TProtocol : class, IRpcProtocol
         {
-            services.Replace(ServiceDescriptor.Singleton<TProtocol, TProtocol>());
-            
+            services.RemoveAll<IRpcProtocol>();
+            services.AddSingleton<IRpcProtocol, TProtocol>();
+
             return services;
         }
     }

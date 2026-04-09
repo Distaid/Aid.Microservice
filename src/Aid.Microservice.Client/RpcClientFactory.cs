@@ -21,7 +21,7 @@ public class RpcClientFactory : IRpcClientFactory, IAsyncDisposable
     private readonly ConcurrentDictionary<string, IRpcClient> _clients = new(StringComparer.OrdinalIgnoreCase);
     
     public RpcClientFactory(
-        IRabbitMqConnectionService connectionService, 
+        IRabbitMqConnectionService connectionService,
         ILoggerFactory loggerFactory,
         IOptions<RabbitMqConfiguration> config,
         IRpcProtocol protocol)
@@ -29,8 +29,10 @@ public class RpcClientFactory : IRpcClientFactory, IAsyncDisposable
         _connectionService = connectionService;
         _loggerFactory = loggerFactory;
         _ownsConnectionService = false;
-        _exchangeName = config.Value.ExchangeName;
         _protocol = protocol;
+        _exchangeName = config.Value.ExchangeName ?? protocol.DefaultExchangeName;
+        var connectionLogger = _loggerFactory.CreateLogger<RpcClientFactory>();
+        connectionLogger.LogInformation("Constructor 1");
     }
 
     public RpcClientFactory(RabbitMqConfiguration configuration, IRpcProtocol? protocol = null)
@@ -82,17 +84,32 @@ public class RpcClientFactory : IRpcClientFactory, IAsyncDisposable
     
     public IRpcClient CreateClient(string serviceName)
     {
+        return CreateClient(serviceName, _protocol, _exchangeName);
+    }
+
+    public IRpcClient CreateClient(string serviceName, IRpcProtocol protocol)
+    {
+        var exchangeName = string.IsNullOrEmpty(_exchangeName) || _exchangeName == _protocol.DefaultExchangeName
+            ? protocol.DefaultExchangeName
+            : _exchangeName;
+
+        return CreateClient(serviceName, protocol, exchangeName);
+    }
+
+    public IRpcClient CreateClient(string serviceName, IRpcProtocol protocol, string exchangeName)
+    {
         if (string.IsNullOrWhiteSpace(serviceName))
         {
             throw new ArgumentException("Service name must be specified", nameof(serviceName));
         }
-        
-        return _clients.GetOrAdd(serviceName, name => new RpcClient(
+
+        var key = $"{serviceName}|{protocol.GetType().Name}|{exchangeName}";
+        return _clients.GetOrAdd(key, _ => new RpcClient(
             _connectionService,
             _loggerFactory.CreateLogger<RpcClient>(),
-            _protocol,
-            name,
-            _exchangeName));
+            protocol,
+            serviceName,
+            exchangeName));
     }
     
     public async ValueTask DisposeAsync()

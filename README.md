@@ -12,13 +12,13 @@ This library abstracts away the complex logic of RPC interactions (request/respo
 
 ## Server
 
-You can create simple console application
+Create a simple console application:
 
 ```shell
-dotnet new console <name>
+dotnet new console -n MyService
 ```
 
-Then just add `appsettings.json`. For example:
+Then add `appsettings.json`:
 
 ```json
 {
@@ -39,7 +39,7 @@ Then just add `appsettings.json`. For example:
 }
 ```
 
-Create Microservice class:
+Create a microservice class:
 
 ```csharp
 [Microservice] // Service name will be "simple" by default
@@ -50,18 +50,27 @@ public class SimpleService
 }
 ```
 
-And run server in program.cs:
+And run the server in `Program.cs`:
 
 ```csharp
-await MicroserviceHostBuilder
-    .CreateBuilder(args)
-    .Build()
-    .RunAsync();
+using Aid.Microservice.Server;
+using Aid.Microservice.Server.Extensions;
+
+var builder = MicroserviceHostBuilder.CreateBuilder(args);
+
+builder.ConfigureServices((_, services) =>
+{
+    services.AddAidMicroservice(typeof(Program).Assembly);
+});
+
+var app = builder.Build();
+
+app.Run();
 ```
 
 ### Features
 
-- Attributes for registering services **[Microservice]** and methods **[RpcCallable]**
+- **Declarative API** — mark services and methods with `[Microservice]` and `[RpcCallable]` attributes:
 
 ```csharp
 [Microservice]
@@ -72,7 +81,7 @@ public class SimpleService
 }
 ```
 
-- Aliases for services and methods
+- **Custom naming** — use aliases for cross-language compatibility:
 
 ```csharp
 [Microservice("just_name_me")]
@@ -83,7 +92,7 @@ public class NamedService
 }
 ```
 
-- **DI Support**: Services are registered as `Scoped`, allowing you to inject DbContexts or other dependencies
+- **DI Support** — services are registered as `Scoped`, allowing you to inject DbContext, ILogger, and other dependencies:
 
 ```csharp
 [Microservice]
@@ -97,14 +106,14 @@ public class DiService(ILogger<DiService> logger)
 }
 ```
 
-- **Proxy Support**: Use `IRpcProxyFactory` to communicate between services on the server side.
+- **Proxy Support** — use `IRpcProxyFactory` for interservice communication on the server side:
 
 ```csharp
 [Microservice]
 public class ProxyService(IRpcProxyFactory factory)
 {
     private readonly IRpcProxy _multipleProxy = factory.CreateProxy("simple");
-    
+
     [RpcCallable]
     public async Task<string> MultiplyString()
     {
@@ -114,62 +123,167 @@ public class ProxyService(IRpcProxyFactory factory)
 }
 ```
 
-### Protocols & Interoperability
+- **Async methods** — full async/await support:
 
-The library is designed to support multiple messaging protocols via `IRpcProtocol`.
+```csharp
+[Microservice]
+public class AsyncService
+{
+    [RpcCallable]
+    public async Task Delay(int seconds)
+    {
+        await Task.Delay(TimeSpan.FromSeconds(seconds));
+    }
+}
+```
+
+- **Per-Service Serializers** — assign a custom serializer to an entire service:
+
+```csharp
+[Microservice("nameko_service", SerializerType = typeof(NamekoSerializer))]
+public class NamekoService
+{
+    [RpcCallable]
+    public int Add(int a, int b) => a + b;
+}
+```
+
+- **Per-Method Serializers** — mix different serializers within a single service:
+
+```csharp
+[Microservice("mixed_service")]
+public class MixedService
+{
+    [RpcCallable("nameko_add", SerializerType = typeof(NamekoSerializer))]
+    public int NamekoAdd(int a, int b) => a + b;
+
+    [RpcCallable]
+    public int DefaultAdd(int a, int b) => a + b;
+}
+```
+
+- **Explicit Exchange Names** — control which exchange a service listens on:
+
+```csharp
+// Single exchange for all methods
+[Microservice("custom_exchange", ExchangeName = "my_custom_rpc")]
+public class CustomExchangeService
+{
+    [RpcCallable]
+    public string Echo(string message) => $"Echo: {message}";
+}
+```
+
+### Protocols & Serializers
+
+The library separates **messaging protocol** (RabbitMQ exchange type, binding) from **message serialization** (body format). This allows fine-grained control over how each service communicates.
+
+#### Architecture
+
+```
+IRpcProtocol                    IRequestSerializer
+├── ExchangeType (Topic)        ├── CreateRequest()
+├── DefaultExchangeName         ├── ParseRequest()
+└── DefaultSerializer ──────►   ├── CreateResponse()
+                                └── ParseResponse()
+```
+
+| Layer          | Interface            | Responsibility                                 |
+|----------------|----------------------|------------------------------------------------|
+| **Protocol**   | `IRpcProtocol`       | Exchange type, exchange name, routing, binding |
+| **Serializer** | `IRequestSerializer` | Body format (JSON structure, args/kwargs)      |
+
+#### Built-in Protocols
+
+| Protocol              | Exchange Type | Exchange Name | Serializer              | Use Case               |
+|-----------------------|---------------|---------------|-------------------------|------------------------|
+| `DefaultJsonProtocol` | Topic         | `aid_rpc`     | `DefaultJsonSerializer` | .NET ↔ .NET services   |
+| `NamekoProtocol`      | Topic         | `nameko-rpc`  | `NamekoSerializer`      | .NET ↔ Python (Nameko) |
+
+> 📘 For a complete reference of all shared models, attributes, and interfaces — see the [Shared Documentation](docs/shared.README.md).
 
 #### Default Protocol
 
-By default, it uses a JSON-based protocol over a RabbitMQ **Topic Exchange**.
+Out of the box, the library uses `DefaultJsonProtocol` with a Topic Exchange.
 
-- **Routing Key**: `service_name.method_name`.
-- **Payload**: `{"Method": "...", "Parameters": {...}}`.
+- **Routing Key**: `service_name.method_name`
+- **Payload**: `{"Method": "...", "Parameters": {...}}`
+- **Binding**: `service_name.*`
 
-#### Python (Nameko) Support
+#### Python (Nameko) Interoperability
 
-The library includes built-in support for [Nameko](https://nameko.readthedocs.io/), a popular Python microservices framework. This allows your .NET services to transparently communicate with Python services.
-
-To enable Nameko support, register the protocol in your `Program.cs`:
+Built-in support for [Nameko](https://nameko.readthedocs.io/), a popular Python microservices framework. Your .NET services can transparently communicate with Python Nameko services.
 
 ```csharp
-using Aid.Microservice.Protocols;
+using Aid.Microservice.Shared.Protocols;
 
-// 1. Register NamekoProtocol
-builder.Services.AddSingleton<IRpcProtocol, NamekoProtocol>();
+// Server: use NamekoProtocol for all services
+builder.Services.AddAidMicroserviceProtocol<NamekoProtocol>();
+builder.Services.AddAidMicroservice(typeof(Program).Assembly);
 
-// 2. Add Client/Server
-builder.Services.AddAidMicroserviceClient(options => 
-{
-    // Nameko uses "nameko-rpc" exchange by default or set one you need
-    options.ExchangeName = "nameko-rpc"; 
-});
+// Client: create a client with NamekoProtocol
+var namekoClient = factory.CreateClient("python_service", new NamekoProtocol());
+var result = await namekoClient.CallAsync<int>("add", new { a = 1, b = 2 });
 ```
 
-Now all RPC calls will be formatted as Nameko messages (`{"args": [], "kwargs": {...}}`) and routed using Nameko conventions.
+#### Per-Service and Per-Method Serializers
+
+You can mix different serializers within a single application — or even a single service.
+
+```csharp
+// Entire service uses NamekoSerializer on "nameko-rpc" exchange
+[Microservice("python_bridge", SerializerType = typeof(NamekoSerializer))]
+public class PythonBridge
+{
+    [RpcCallable]
+    public int Add(int a, int b) => a + b;
+}
+
+// Mixed service: different methods use different exchanges
+[Microservice("mixed")]
+public class MixedService
+{
+    // Listens on "nameko-rpc" exchange
+    [RpcCallable("nameko_add", SerializerType = typeof(NamekoSerializer))]
+    public int NamekoAdd(int a, int b) => a + b;
+
+    // Listens on "aid_rpc" exchange (default)
+    [RpcCallable]
+    public int DefaultAdd(int a, int b) => a + b;
+}
+```
+
+Priority: `[RpcCallable(SerializerType)]` > `[Microservice(SerializerType)]` > protocol's `DefaultSerializer`.
+
+#### Explicit Exchange Names
+
+When a service has methods with different serializers, the server automatically creates queues on all required exchanges. You can also specify exchanges explicitly:
+
+```csharp
+// Single exchange for all methods
+[Microservice("service", ExchangeName = "my_custom_rpc")]
+public class SingleExchangeService { ... }
+
+// Multiple exchanges for different methods
+[Microservice("service", Exchanges = ["aid_rpc", "nameko-rpc"])]
+public class MultiExchangeService { ... }
+```
 
 #### Sending Arguments (args and kwargs)
 
-By default, passing an object sends it as named arguments (`kwargs`). If you need to send positional arguments (`args`), use the `RpcNamekoRequest` wrapper:
+When using `NamekoSerializer` or `NamekoProtocol`, you can send positional arguments (`args`) alongside named arguments (`kwargs`) via `RpcNamekoRequest`:
 
 ```csharp
-// 1. Sends kwargs: {'a': 1, 'b': 2}
+// kwargs: {'a': 1, 'b': 2}
 await client.CallAsync("add", new { a = 1, b = 2 });
 
-// 2. Sends args: [10, 20]
-await client.CallAsync("sum_list", 
-    new RpcNamekoRequest 
-    { 
-        Args = new object[] { 10, 20 } 
-    }
-);
+// args: [10, 20]
+await client.CallAsync("sum", new RpcNamekoRequest(10, 20));
 
-// or pass args as "params"
-await client.CallAsync("sum_list", new RpcNamekoRequest(10, 20));
-
-// 3. Sends both: args=['pdf'], kwargs={'async': true}
-await client.CallAsync("generate", 
+// args=['pdf'], kwargs={'async': true}
+await client.CallAsync("generate",
     new RpcNamekoRequest(
-        args: new object[] { "pdf" }, 
+        args: new object[] { "pdf" },
         kwargs: new { async = true }
     )
 );
@@ -177,9 +291,9 @@ await client.CallAsync("generate",
 
 ### Configuration
 
-#### RabbitMq
+#### RabbitMQ
 
-RabbitMq connection is required in `appsettings.json`
+RabbitMQ connection is configured via `appsettings.json`:
 
 ```json
 {
@@ -195,51 +309,76 @@ RabbitMq connection is required in `appsettings.json`
 }
 ```
 
-- `ExchangeName` (optional): The RabbitMQ exchange used for routing messages. Default is empty string. Set if you want to use a custom exchange.
-- `RetryCount` (optional): How many times to retry connection. Default is 3.
-- `RecoveryInterval` (optional): Seconds between retries. Default is 5.
+| Option                      | Default        | Description                                                                                      |
+|-----------------------------|----------------|--------------------------------------------------------------------------------------------------|
+| `ExchangeName`              | (per-protocol) | Global override for all exchanges. Leave empty to use per-protocol defaults.                     |
+| `RetryCount`                | 3              | Connection retry attempts.                                                                       |
+| `RecoveryInterval`          | 5              | Seconds between retries.                                                                         |
+| `DeleteExchangesOnShutdown` | false          | Whether to delete declared exchanges when the server shuts down. Useful for development/cleanup. |
 
-#### Host
-
-Simple example of creating host:
+### Protocol Registration
 
 ```csharp
-await MicroserviceHostBuilder
-    .CreateBuilder(args)
-    .Build()
-    .RunAsync();
+using Aid.Microservice.Server.Extensions;
+using Aid.Microservice.Shared.Protocols;
+
+var builder = MicroserviceHostBuilder.CreateBuilder(args);
+
+builder.ConfigureServices((context, services) =>
+{
+    // Optional: replace the default protocol (works before or after AddAidMicroservice)
+    services.AddAidMicroserviceProtocol<NamekoProtocol>();
+
+    // Register services from the assembly
+    services.AddAidMicroservice(typeof(Program).Assembly);
+});
+
+await builder.Build().RunAsync();
 ```
 
-You can watch the [Server Example Project](examples/Aid.Microservice.Server.Example).
+> 📘 For a complete server reference — including multi-exchange setup, custom serializers, and architecture details — see the [Server Documentation](docs/server.README.md).
+
+You can find the full [Server Example](examples/Aid.Microservice.Server.Example).
 
 ## Client
 
-#### Standalone (Console App)
+### Standalone (Console App)
 
-For console applications, use `RpcClientFactory` to manage connections efficiently. The factory holds the TCP connection, while clients created by it are lightweight.
+Use `RpcClientFactory` to manage connections efficiently. The factory holds the TCP connection, while clients created by it are lightweight.
 
 ```csharp
 // 1. Create factory (holds the connection)
-await using var rpcFactory = new RpcClientFactory("localhost", 5672, "guest", "guest");
+await using var factory = new RpcClientFactory("localhost", 5672, "guest", "guest");
 
 // 2. Create a client bound to a specific service
 await using var simpleClient = factory.CreateClient("simple");
 
 // 3. Make calls
-try 
-{
-    var simpleResult = await simpleClient.CallAsync<int>("multiple", new {a = 5, b = 10});
-    Console.WriteLine(simpleResult);
-}
-catch (RpcCallException ex)
-{
-    Console.WriteLine($"RPC Error: {ex.Message}");
-}
+var result = await simpleClient.CallAsync<int>("multiple", new { a = 5, b = 10 });
+Console.WriteLine(result);
 ```
 
-You can watch the [Client Example Project](examples/Aid.Microservice.Client.Example).
+#### Using Different Protocols
 
-### AspNetCore
+```csharp
+var factory = new RpcClientFactory("localhost", 5672, "guest", "guest");
+
+// Default protocol (aid_rpc)
+var defaultClient = factory.CreateClient("simple");
+
+// Nameko protocol (nameko-rpc)
+var namekoClient = factory.CreateClient("python_service", new NamekoProtocol());
+
+// Mixed service — same service, different protocols
+var mixedNameko = factory.CreateClient("mixed", new NamekoProtocol());   // → nameko_add
+var mixedDefault = factory.CreateClient("mixed");                        // → default_add
+```
+
+You can find the full [Client Example](examples/Aid.Microservice.Client.Example).
+
+> 📘 For a complete console client reference — including API details, error handling, and configuration — see the [Client Documentation](docs/client.README.md).
+
+### ASP.NET Core
 
 #### Configuration
 
@@ -253,7 +392,7 @@ builder.Services.AddAidMicroserviceClient();
 Or pass configuration manually:
 
 ```csharp
-builder.Services.AddAidMicroserviceClient(config => 
+builder.Services.AddAidMicroserviceClient(config =>
 {
     config.Hostname = "localhost";
     config.ExchangeName = "my_custom_rpc";
@@ -262,7 +401,7 @@ builder.Services.AddAidMicroserviceClient(config =>
 
 #### Usage
 
-Inject `IRpcClientFactory` into your controllers or services.
+Inject `IRpcClientFactory` into your controllers or minimal API handlers:
 
 ```csharp
 app.MapGet("/", async (IRpcClientFactory factory) =>
@@ -270,6 +409,15 @@ app.MapGet("/", async (IRpcClientFactory factory) =>
     var proxyClient = factory.CreateClient("proxy");
     return await proxyClient.CallAsync<string>("multiplystring");
 });
+
+// Nameko protocol
+app.MapGet("/nameko", async (IRpcClientFactory factory) =>
+{
+    var namekoClient = factory.CreateClient("python_service", new NamekoProtocol());
+    return await namekoClient.CallAsync<int>("add", new { a = 1, b = 2 });
+});
 ```
 
-You can watch the [Client AspNetCore Example Project](examples/Aid.Microservice.Client.AspNetCore.Example).
+You can find the full [Client ASP.NET Core Example](examples/Aid.Microservice.Client.AspNetCore.Example).
+
+> 📘 For a complete ASP.NET Core client reference — including DI registration, controller usage, and error handling — see the [Client ASP.NET Core Documentation](docs/client.aspnetcore.README.md).
