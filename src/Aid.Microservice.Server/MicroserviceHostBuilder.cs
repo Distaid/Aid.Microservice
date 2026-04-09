@@ -2,7 +2,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using System.Reflection;
 using Aid.Microservice.Server.Hosting;
 using Microsoft.Extensions.Logging;
 using Serilog;
@@ -35,9 +34,6 @@ public class MicroserviceHostBuilder : IMicroserviceHostBuilder
             {
                 services.AddSerilog();
                 services.AddMemoryCache();
-                
-                var entryAssembly = Assembly.GetEntryAssembly() ?? throw new InvalidOperationException("Could not determine Entry Assembly.");
-                services.AddAidMicroservice(entryAssembly);
             });
     }
 

@@ -19,6 +19,11 @@ public static class MicroserviceExtensions
 {
     extension(IServiceCollection services)
     {
+        /// <summary>
+        /// Scan assembly and register RPC endpoints
+        /// </summary>
+        /// <param name="assemblyToScan">Assembly to scan</param>
+        /// <returns>The same instance of the <see cref="T:Microsoft.Extensions.DependencyInjection.IServiceCollection" /> for chaining</returns>
         public IServiceCollection AddAidMicroservice(Assembly assemblyToScan)
         {
             services.AddOptions<RabbitMqConfiguration>()
