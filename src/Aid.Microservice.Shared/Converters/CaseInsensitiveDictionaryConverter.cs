@@ -5,7 +5,7 @@ namespace Aid.Microservice.Shared.Converters;
 
 public class CaseInsensitiveDictionaryConverter : JsonConverter<Dictionary<string, JsonElement>>
 {
-    public override Dictionary<string, JsonElement>? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    public override Dictionary<string, JsonElement> Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
         if (reader.TokenType != JsonTokenType.StartObject)
         {

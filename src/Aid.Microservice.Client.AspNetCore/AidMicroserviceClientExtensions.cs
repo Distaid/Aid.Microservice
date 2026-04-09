@@ -34,12 +34,11 @@ public static class AidMicroserviceClientExtensions
         /// <summary>
         /// Adds RpcClientFactory to the container with RabbitMq configuration.
         /// </summary>
-        /// <param name="services">The <see cref="T:Microsoft.Extensions.DependencyInjection.IServiceCollection" /></param>
         /// <param name="configuration"><see cref="RabbitMqConfiguration" /> instance to initialize connection to RabbitMq</param>
         /// <returns>The same instance of the <see cref="T:Microsoft.Extensions.DependencyInjection.IServiceCollection" /> for chaining</returns>
         public IServiceCollection AddAidMicroserviceClient(RabbitMqConfiguration configuration)
         {
-            return AddAidMicroserviceClient(services, options =>
+            return services.AddAidMicroserviceClient(options =>
             {
                 options.Hostname = configuration.Hostname;
                 options.Port = configuration.Port;
@@ -53,7 +52,6 @@ public static class AidMicroserviceClientExtensions
         /// <summary>
         /// Adds RpcClientFactory to the container with RabbitMq configuration.
         /// </summary>
-        /// <param name="services">The <see cref="T:Microsoft.Extensions.DependencyInjection.IServiceCollection" /></param>
         /// <param name="configureOptions"><see cref="RabbitMqConfiguration" /> action to initialize connection to RabbitMq</param>
         /// <returns>The same instance of the <see cref="T:Microsoft.Extensions.DependencyInjection.IServiceCollection" /> for chaining</returns>
         public IServiceCollection AddAidMicroserviceClient(Action<RabbitMqConfiguration> configureOptions)
