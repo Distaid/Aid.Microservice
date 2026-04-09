@@ -54,6 +54,19 @@ public static class MicroserviceExtensions
             
             return services;
         }
+        
+        /// <summary>
+        /// Register RPC protocol
+        /// </summary>
+        /// <typeparam name="TProtocol">Realization of <see cref="IRpcProtocol"/> interface</typeparam>
+        /// <returns>The same instance of the <see cref="T:Microsoft.Extensions.DependencyInjection.IServiceCollection" /> for chaining</returns>
+        public IServiceCollection AddAidMicroserviceProtocol<TProtocol>()
+            where TProtocol : class, IRpcProtocol
+        {
+            services.Replace(ServiceDescriptor.Singleton<TProtocol, TProtocol>());
+            
+            return services;
+        }
     }
     
     private static void RegisterServiceClasses(IServiceCollection services, Assembly assembly)
