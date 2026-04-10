@@ -7,7 +7,7 @@
 
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageId>Aid.Microservice.Shared</PackageId>
-    <Version>2.0.0</Version>
+    <Version>2.2.0</Version>
     <Authors>Distaid</Authors>
     <Description>Shared models, attributes, and protocols for the Aid.Microservice ecosystem. Includes built-in serializers for Default JSON and Nameko (Python) interoperability.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
