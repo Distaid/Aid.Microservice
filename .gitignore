@@ -52,3 +52,8 @@ publish/
 *.sln.iml
 *.DotSettings.user
 .idea/
+
+# Nameko
+venv/
+__pycache__/
+*.pyc
