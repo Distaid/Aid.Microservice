@@ -7,7 +7,7 @@ public record RpcResponse
     public object? Result { get; init; }
     
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public RpcError? Error { get; set; }
+    public RpcError? Error { get; init; }
 
     [JsonIgnore]
     public bool IsSuccess => Error == null;
