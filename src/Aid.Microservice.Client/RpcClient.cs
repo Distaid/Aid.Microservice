@@ -112,6 +112,11 @@ public class RpcClient(
         TimeSpan? timeout = null,
         CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(method))
+        {
+            throw new ArgumentException("Method name must not be null or whitespace", nameof(method));
+        }
+
         if (!_isInitialized)
         {
             await InitializeAsync(cancellationToken);
