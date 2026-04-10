@@ -1,0 +1,9 @@
+<Project>
+  <PropertyGroup>
+    <Version>2.3.0</Version>
+    <Authors>Distaid</Authors>
+    <RepositoryUrl>https://github.com/Distaid/Aid.Microservice</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+  </PropertyGroup>
+</Project>

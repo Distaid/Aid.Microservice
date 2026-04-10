@@ -7,13 +7,8 @@
 
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageId>Aid.Microservice.Client</PackageId>
-    <Version>2.2.0</Version>
-    <Authors>Distaid</Authors>
     <Description>A lightweight RPC client library for communicating with Aid.Microservice services over RabbitMQ. Supports multiple protocols (including Nameko/Python), per-client serializers, and efficient connection pooling.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <RepositoryUrl>https://github.com/Distaid/Aid.Microservice</RepositoryUrl>
-    <RepositoryType>git</RepositoryType>
     <PackageTags>rabbitmq, rpc, microservice, nameko, net, core, client</PackageTags>
   </PropertyGroup>
 

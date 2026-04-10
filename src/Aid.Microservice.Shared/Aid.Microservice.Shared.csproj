@@ -7,13 +7,8 @@
 
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageId>Aid.Microservice.Shared</PackageId>
-    <Version>2.2.0</Version>
-    <Authors>Distaid</Authors>
     <Description>Shared models, attributes, and protocols for the Aid.Microservice ecosystem. Includes built-in serializers for Default JSON and Nameko (Python) interoperability.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <RepositoryUrl>https://github.com/Distaid/Aid.Microservice</RepositoryUrl>
-    <RepositoryType>git</RepositoryType>
     <PackageTags>rabbitmq, rpc, microservice, nameko, shared, models, attributes, net, core</PackageTags>
   </PropertyGroup>
 

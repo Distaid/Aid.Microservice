@@ -7,13 +7,8 @@
 
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageId>Aid.Microservice.Server</PackageId>
-    <Version>2.2.0</Version>
-    <Authors>Distaid</Authors>
     <Description>A .NET library for building RPC microservices over RabbitMQ with support for multiple protocols and per-method serializers. Features declarative attributes, DI, async/await, and Nameko (Python) interoperability.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <RepositoryUrl>https://github.com/Distaid/Aid.Microservice</RepositoryUrl>
-    <RepositoryType>git</RepositoryType>
     <PackageTags>rabbitmq, rpc, microservice, nameko, net, core</PackageTags>
   </PropertyGroup>
 
