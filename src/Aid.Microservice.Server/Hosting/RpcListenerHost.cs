@@ -145,7 +145,7 @@ public class RpcListenerHost(
         {
             try
             {
-                await ProcessMessageAsync(serviceName, channel, ea);
+                await ProcessMessageAsync(serviceName, exchangeName, channel, ea);
             }
             catch (Exception ex)
             {
@@ -157,7 +157,7 @@ public class RpcListenerHost(
         logger.LogInformation("Service '{Service}' listening on Queue '{Queue}' (Exchange: {Exchange})", serviceName, queueName, exchangeName);
     }
 
-    private async Task ProcessMessageAsync(string serviceName, IChannel channel, BasicDeliverEventArgs ea)
+    private async Task ProcessMessageAsync(string serviceName, string exchangeName, IChannel channel, BasicDeliverEventArgs ea)
     {
         var props = ea.BasicProperties;
         var replyTo = props.ReplyTo;
@@ -206,11 +206,12 @@ public class RpcListenerHost(
 
             var replyProps = new BasicProperties
             {
-                CorrelationId = correlationId
+                CorrelationId = correlationId,
+                ContentType = serializer.ContentType
             };
 
             await channel.BasicPublishAsync(
-                exchange: "",
+                exchange: exchangeName,
                 routingKey: replyTo,
                 mandatory: true,
                 basicProperties: replyProps,
