@@ -110,7 +110,7 @@ public class NamekoSerializer : IRequestSerializer
 
             return new RpcResponse
             {
-                Error = new RpcError(message, stackTrace, errorType)
+                Error = new RpcError(message, errorType: errorType, stackTrace: stackTrace)
             };
         }
 
