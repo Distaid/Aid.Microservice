@@ -108,7 +108,7 @@ public class RpcListenerHost(
                 logger.LogError(ex, "Failed to start listener for service '{Service}' on exchange '{Exchange}'", serviceName, actualExchange);
             }
         }
-        logger.LogInformation("Server start working");
+        logger.LogInformation("Server started and accepting requests");
     }
 
     private async Task StartServiceListenerAsync(
