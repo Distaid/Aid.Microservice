@@ -36,6 +36,7 @@ public class CaseInsensitiveDictionaryConverter : JsonConverter<Dictionary<strin
 
     public override void Write(Utf8JsonWriter writer, Dictionary<string, JsonElement> value, JsonSerializerOptions options)
     {
+        // Default serialization — no custom transformation needed
         JsonSerializer.Serialize(writer, value, options);
     }
 }
