@@ -21,7 +21,8 @@ public class RpcEndpointRegistry(
 
     public void ScanAssemblies(Assembly assembly)
     {
-        logger.LogInformation("Scanning assembly {Assembly} for RPC endpoints...", assembly.GetName().Name);
+        logger.LogDebug("── RPC Service Discovery ──────────────────────────");
+        logger.LogDebug("Scanning assembly {Assembly} for RPC endpoints...", assembly.GetName().Name);
 
         var serviceTypes = assembly.GetTypes()
             .Where(t => t is { IsClass: true, IsAbstract: false } && t.GetCustomAttribute<MicroserviceAttribute>() is not null);
@@ -33,11 +34,11 @@ public class RpcEndpointRegistry(
             var serviceAttr = serviceType.GetCustomAttribute<MicroserviceAttribute>()!;
             serviceAttr.SetServiceName(serviceType);
             var serviceName = serviceAttr.ServiceName;
-            
+
             var methods = serviceType
                 .GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
                 .Where(m => m.GetCustomAttribute<RpcCallableAttribute>() is not null);
-            
+
             var methodDict = new Dictionary<string, RpcMethodInfo>(StringComparer.OrdinalIgnoreCase);
 
             foreach (var method in methods)
@@ -65,15 +66,13 @@ public class RpcEndpointRegistry(
                         FastInvoke: fastDelegate,
                         SerializerType: serializerType
                     );
-
-                    logger.LogDebug("Registered RPC method: {Service}.{Method} (Serializer: {Serializer})", serviceName, methodName, serializerType?.Name ?? "default");
                 }
                 catch (Exception ex)
                 {
                     logger.LogError(ex, "Failed to compile delegate for {Service}.{Method}", serviceName, method.Name);
                 }
             }
-            
+
             if (methodDict.Count > 0)
             {
                 if (_endpoints.TryAdd(serviceName, methodDict))
@@ -84,7 +83,23 @@ public class RpcEndpointRegistry(
                     var exchanges = ResolveExchanges(serviceAttr, methodDict);
                     _serviceExchanges[serviceName] = exchanges;
 
-                    logger.LogDebug("Service '{Service}' exchanges: {Exchanges}", serviceName, string.Join(", ", exchanges));
+                    var methodNames = methodDict
+                        .Select(kvp =>
+                        {
+                            var alias = kvp.Key;
+                            var csharpName = kvp.Value.Method.Name;
+                            var serializerLabel = kvp.Value.SerializerType != null
+                                ? $" [{kvp.Value.SerializerType.Name.Replace("Serializer", "")}]"
+                                : "";
+                            return $"{csharpName} ({alias}){serializerLabel}";
+                        });
+
+                    logger.LogDebug("  {Service,-22} → {Exchanges} ({Count} method{Plural}): {Methods}",
+                        serviceName,
+                        string.Join(", ", exchanges),
+                        methodDict.Count,
+                        methodDict.Count > 1 ? "s" : "",
+                        string.Join(", ", methodNames));
                 }
                 else
                 {
@@ -92,8 +107,12 @@ public class RpcEndpointRegistry(
                 }
             }
         }
-        
-        logger.LogInformation("RPC Discovery Complete. Registered {Services} services with {Methods} methods", totalServices, totalMethods);
+
+        logger.LogDebug("── Registered {Services} service{ServicesPlural} with {Methods} method{MethodsPlural} ──",
+            totalServices,
+            totalServices != 1 ? "s" : "",
+            totalMethods,
+            totalMethods != 1 ? "s" : "");
     }
     
     public bool TryGetMethod(string serviceName, string methodName, out RpcMethodInfo? endpointInfo)

@@ -42,15 +42,8 @@ public class RpcListenerHost(
             return;
         }
 
-        var globalOverride = !string.IsNullOrWhiteSpace(_rabbitConfig.ExchangeName);
-
-        var uniqueExchanges = globalOverride
-            ? endpoints.Select(_ => _rabbitConfig.ExchangeName!).Distinct().ToList()
-            : endpoints.Select(e => e.ExchangeName).Distinct().ToList();
-
-        logger.LogInformation(
-            "Starting RPC Listeners for {Count} service endpoints across {Exchanges} exchanges",
-            endpoints.Count, uniqueExchanges.Count);
+        logger.LogInformation("── Starting RPC Listeners ─────────────────────────");
+        logger.LogInformation("Found {Count} service endpoints", endpoints.Count);
 
         if (!await connectionService.TryConnectAsync(stoppingToken))
         {
@@ -58,6 +51,11 @@ public class RpcListenerHost(
             hostApplicationLifetime.StopApplication();
             return;
         }
+
+        var globalOverride = !string.IsNullOrWhiteSpace(_rabbitConfig.ExchangeName);
+        var uniqueExchanges = globalOverride
+            ? endpoints.Select(_ => _rabbitConfig.ExchangeName!).Distinct().ToList()
+            : endpoints.Select(e => e.ExchangeName).Distinct().ToList();
 
         var exchangeDeclared = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var exchange in uniqueExchanges)
@@ -79,8 +77,8 @@ public class RpcListenerHost(
 
                 exchangeDeclared.Add(exchange);
                 _declaredExchanges.Add(exchange);
-                
-                logger.LogInformation("Exchange '{Exchange}' declared (Type: {Type})", exchange, protocol.ExchangeType);
+
+                logger.LogInformation("  Exchange declared: {Exchange} ({Type})", exchange, protocol.ExchangeType);
             }
             catch (Exception ex)
             {
@@ -88,6 +86,8 @@ public class RpcListenerHost(
             }
         }
 
+        var startedListeners = 0;
+        var skippedListeners = 0;
         foreach (var (serviceName, exchangeName) in endpoints)
         {
             if (stoppingToken.IsCancellationRequested) break;
@@ -96,19 +96,24 @@ public class RpcListenerHost(
             if (!exchangeDeclared.Contains(actualExchange))
             {
                 logger.LogWarning("Exchange '{Exchange}' was not declared. Skipping service '{Service}'", actualExchange, serviceName);
+                skippedListeners++;
                 continue;
             }
 
             try
             {
                 await StartServiceListenerAsync(serviceName, actualExchange, stoppingToken);
+                startedListeners++;
             }
             catch (Exception ex)
             {
                 logger.LogError(ex, "Failed to start listener for service '{Service}' on exchange '{Exchange}'", serviceName, actualExchange);
             }
         }
-        logger.LogInformation("Server started and accepting requests");
+
+        logger.LogInformation("── RPC Server Ready ({Started} listener{Plural}) ──────────",
+            startedListeners,
+            startedListeners != 1 ? "s" : "");
     }
 
     private async Task StartServiceListenerAsync(
@@ -154,7 +159,7 @@ public class RpcListenerHost(
         };
 
         await channel.BasicConsumeAsync(queue: queueName, autoAck: false, consumer: consumer, cancellationToken: token);
-        logger.LogInformation("Service '{Service}' listening on Queue '{Queue}' (Exchange: {Exchange})", serviceName, queueName, exchangeName);
+        logger.LogInformation("  Listening: {Service} on {Queue}", serviceName, queueName);
     }
 
     private async Task ProcessMessageAsync(string serviceName, string exchangeName, IChannel channel, BasicDeliverEventArgs ea)
