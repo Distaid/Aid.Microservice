@@ -53,7 +53,7 @@ public class RabbitMqConnectionService : IRabbitMqConnectionService
             _logger.LogWarning("RabbitMQ connection service is disposed. Cannot connect");
             return false;
         }
-        
+
         if (IsConnected)
         {
             return true;
@@ -62,62 +62,7 @@ public class RabbitMqConnectionService : IRabbitMqConnectionService
         await _connectionLock.WaitAsync(cancellationToken);
         try
         {
-            if (IsConnected)
-            {
-                return true;
-            }
-
-            _logger.LogInformation("Attempting to connect to RabbitMQ...");
-            for (var retry = 1; retry <= _retryCount; retry++)
-            {
-                if (cancellationToken.IsCancellationRequested)
-                {
-                    return false;
-                }
-
-                try
-                {
-                    await DisposeConnection();
-                    _connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
-
-                    if (IsConnected)
-                    {
-                        _connection.ConnectionShutdownAsync += OnConnectionShutdownAsync;
-                        _connection.CallbackExceptionAsync += OnCallbackExceptionAsync;
-                        _connection.ConnectionBlockedAsync += OnConnectionBlockedAsync;
-                        _connection.ConnectionUnblockedAsync += OnConnectionUnblockedAsync;
-                        _logger.LogInformation("RabbitMQ connection established successfully. Client: {ClientName}",
-                            _connection!.ClientProvidedName);
-                        return true;
-                    }
-                    else
-                    {
-                        _logger.LogWarning( "CreateConnection succeeded but connection is not open. Attempt {Retry}/{TotalRetries}", retry, _retryCount);
-                    }
-                }
-                catch (BrokerUnreachableException ex)
-                {
-                    _logger.LogWarning(ex, "Could not reach RabbitMQ broker. Attempt {Retry}/{TotalRetries}", retry, _retryCount);
-                }
-                catch (SocketException ex)
-                {
-                    _logger.LogWarning(ex, "Network error connecting to RabbitMQ. Attempt {Retry}/{TotalRetries}", retry, _retryCount);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error connecting to RabbitMQ. Attempt {Retry}/{TotalRetries}", retry, _retryCount);
-
-                    if (ex is AuthenticationFailureException) break;
-                }
-
-                if (retry < _retryCount)
-                {
-                    await Task.Delay(_recoveryInterval, cancellationToken);
-                }
-            }
-            
-            _logger.LogError("Failed to connect to RabbitMQ after {TotalRetries} attempts", _retryCount);
-            return false;
+            return await TryConnectInternalAsync(cancellationToken);
         }
         finally
         {
@@ -222,22 +167,101 @@ public class RabbitMqConnectionService : IRabbitMqConnectionService
         {
             throw new ObjectDisposedException(nameof(RabbitMqConnectionService));
         }
-        
-        if (!IsConnected)
+
+        IChannel channel;
+
+        if (IsConnected)
+        {
+            var conn = _connection!;
+            channel = await conn.CreateChannelAsync(cancellationToken: cancellationToken);
+        }
+        else
         {
             _logger.LogWarning("RabbitMQ connection is not open. Attempting to reconnect before creating channel...");
-            if (!await TryConnectAsync(cancellationToken))
+
+            await _connectionLock.WaitAsync(cancellationToken);
+            try
             {
-                throw new InvalidOperationException("RabbitMQ connection unavailable. Cannot create channel");
+                if (!IsConnected)
+                {
+                    if (!await TryConnectInternalAsync(cancellationToken))
+                    {
+                        throw new InvalidOperationException("RabbitMQ connection unavailable. Cannot create channel");
+                    }
+                }
+
+                var conn = _connection!;
+                channel = await conn.CreateChannelAsync(cancellationToken: cancellationToken);
+            }
+            finally
+            {
+                _connectionLock.Release();
             }
         }
-        
-        var conn = _connection;
-        if (conn is not { IsOpen: true })
+
+        return channel;
+    }
+
+    /// <summary>
+    /// Internal connect method that must be called under <see cref="_connectionLock"/>.
+    /// </summary>
+    private async Task<bool> TryConnectInternalAsync(CancellationToken cancellationToken)
+    {
+        if (IsConnected)
         {
-            throw new InvalidOperationException("Connection lost immediately after check.");
+            return true;
         }
 
-        return await conn.CreateChannelAsync(cancellationToken: cancellationToken);
+        _logger.LogInformation("Attempting to connect to RabbitMQ...");
+        for (var retry = 1; retry <= _retryCount; retry++)
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return false;
+            }
+
+            try
+            {
+                await DisposeConnection();
+                _connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+
+                if (IsConnected)
+                {
+                    _connection.ConnectionShutdownAsync += OnConnectionShutdownAsync;
+                    _connection.CallbackExceptionAsync += OnCallbackExceptionAsync;
+                    _connection.ConnectionBlockedAsync += OnConnectionBlockedAsync;
+                    _connection.ConnectionUnblockedAsync += OnConnectionUnblockedAsync;
+                    _logger.LogInformation("RabbitMQ connection established successfully. Client: {ClientName}",
+                        _connection!.ClientProvidedName);
+                    return true;
+                }
+                else
+                {
+                    _logger.LogWarning("CreateConnection succeeded but connection is not open. Attempt {Retry}/{TotalRetries}", retry, _retryCount);
+                }
+            }
+            catch (BrokerUnreachableException ex)
+            {
+                _logger.LogWarning(ex, "Could not reach RabbitMQ broker. Attempt {Retry}/{TotalRetries}", retry, _retryCount);
+            }
+            catch (SocketException ex)
+            {
+                _logger.LogWarning(ex, "Network error connecting to RabbitMQ. Attempt {Retry}/{TotalRetries}", retry, _retryCount);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error connecting to RabbitMQ. Attempt {Retry}/{TotalRetries}", retry, _retryCount);
+
+                if (ex is AuthenticationFailureException) break;
+            }
+
+            if (retry < _retryCount)
+            {
+                await Task.Delay(_recoveryInterval, cancellationToken);
+            }
+        }
+
+        _logger.LogError("Failed to connect to RabbitMQ after {TotalRetries} attempts", _retryCount);
+        return false;
     }
 }
