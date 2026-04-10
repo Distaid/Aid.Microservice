@@ -16,7 +16,7 @@ public static class LoggerExtensions
                 .ReadFrom.Configuration(context.Configuration)
                 .Enrich.FromLogContext()
                 .Enrich.WithProperty("Environment", context.HostingEnvironment.EnvironmentName)
-                .WriteTo.Console(outputTemplate: "[{Timestamp:yyyy-MM-dd HH:mm:ss} {Level:u3}] {Message:lj} env={Environment} {NewLine}{Exception}");
+                .WriteTo.Console(outputTemplate: "[{Timestamp:yyyy-MM-dd HH:mm:ss.fff} {Level:u3}] {Message:lj} env={Environment} {NewLine}{Exception}");
 
             ApplyLoggingSection(loggerConfig, context.Configuration.GetSection("Logging"));
 
