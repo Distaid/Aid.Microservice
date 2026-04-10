@@ -213,7 +213,7 @@ public class RpcListenerHost(
             await channel.BasicPublishAsync(
                 exchange: exchangeName,
                 routingKey: replyTo,
-                mandatory: true,
+                mandatory: false,
                 basicProperties: replyProps,
                 body: responseBytes);
 
