@@ -102,12 +102,39 @@ public class RpcClientFactory : IRpcClientFactory, IAsyncDisposable
         }
 
         var key = $"{serviceName}|{protocol.GetType().Name}|{exchangeName}";
-        return _clients.GetOrAdd(key, _ => new RpcClient(
-            _connectionService,
-            _loggerFactory.CreateLogger<RpcClient>(),
-            protocol,
-            serviceName,
-            exchangeName));
+        return _clients.GetOrAdd(key, _ =>
+        {
+            var client = new RpcClient(
+                _connectionService,
+                _loggerFactory.CreateLogger<RpcClient>(),
+                protocol,
+                serviceName,
+                exchangeName);
+
+            return new DisposingRpcClient(this, key, client);
+        });
+    }
+
+    private void RemoveFromCache(string key)
+    {
+        _clients.TryRemove(key, out _);
+    }
+
+    private sealed class DisposingRpcClient(RpcClientFactory owner, string key, IRpcClient inner) : IRpcClient
+    {
+        public Task InitializeAsync(CancellationToken token = default) => inner.InitializeAsync(token);
+
+        public Task CallAsync(string method, object? parameters = null, TimeSpan? timeout = null, CancellationToken cancellationToken = default)
+            => inner.CallAsync(method, parameters, timeout, cancellationToken);
+
+        public Task<TResponse?> CallAsync<TResponse>(string method, object? parameters = null, TimeSpan? timeout = null, CancellationToken cancellationToken = default)
+            => inner.CallAsync<TResponse>(method, parameters, timeout, cancellationToken);
+
+        public async ValueTask DisposeAsync()
+        {
+            await inner.DisposeAsync();
+            owner.RemoveFromCache(key);
+        }
     }
     
     public async ValueTask DisposeAsync()
