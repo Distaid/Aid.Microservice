@@ -54,14 +54,21 @@ public class RpcClient(
         _subscribeChannel = await connectionService.CreateChannelAsync(token);
 
         var queueResult = await _subscribeChannel.QueueDeclareAsync(
-            queue: "", 
-            durable: false, 
-            exclusive: true, 
-            autoDelete: true, 
+            queue: "",
+            durable: false,
+            exclusive: true,
+            autoDelete: true,
             arguments: null,
             cancellationToken: token);
-            
+
         _replyQueueName = queueResult.QueueName;
+
+        await _subscribeChannel.QueueBindAsync(
+            queue: _replyQueueName,
+            exchange: _exchangeName,
+            routingKey: _replyQueueName,
+            arguments: null,
+            cancellationToken: token);
 
         _consumer = new AsyncEventingBasicConsumer(_subscribeChannel);
         _consumer.ReceivedAsync += OnResponseReceivedAsync;
