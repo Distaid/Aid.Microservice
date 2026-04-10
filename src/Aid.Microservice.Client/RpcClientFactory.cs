@@ -31,8 +31,6 @@ public class RpcClientFactory : IRpcClientFactory, IAsyncDisposable
         _ownsConnectionService = false;
         _protocol = protocol;
         _exchangeName = config.Value.ExchangeName ?? protocol.DefaultExchangeName;
-        var connectionLogger = _loggerFactory.CreateLogger<RpcClientFactory>();
-        connectionLogger.LogInformation("Constructor 1");
     }
 
     public RpcClientFactory(RabbitMqConfiguration configuration, IRpcProtocol? protocol = null)
