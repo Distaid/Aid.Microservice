@@ -6,6 +6,7 @@ using Aid.Microservice.Shared.Interfaces;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
+using RabbitMQ.Client.Exceptions;
 
 namespace Aid.Microservice.Client;
 
@@ -45,9 +46,30 @@ public class RpcClient(
             return;
         }
 
+        await ReinitializeAsync(token);
+    }
+
+    /// <summary>
+    /// Reinitializes channels and reply queue. Does NOT check _isInitialized,
+    /// allowing it to be called to recover from a broken connection.
+    /// </summary>
+    private async Task ReinitializeAsync(CancellationToken token)
+    {
         if (!await connectionService.TryConnectAsync(token))
         {
             throw new InvalidOperationException("RPC Client failed to connect to RabbitMQ.");
+        }
+
+        // Dispose old channels (consumer on the subscribe channel will be cleaned up)
+        if (_publishChannel != null)
+        {
+            await _publishChannel.DisposeAsync();
+            _publishChannel = null;
+        }
+        if (_subscribeChannel != null)
+        {
+            await _subscribeChannel.DisposeAsync();
+            _subscribeChannel = null;
         }
 
         _publishChannel = await connectionService.CreateChannelAsync(token);
@@ -117,9 +139,13 @@ public class RpcClient(
             throw new ArgumentException("Method name must not be null or whitespace", nameof(method));
         }
 
-        if (!_isInitialized)
+        if (!_isInitialized || !IsChannelsAlive())
         {
-            await InitializeAsync(cancellationToken);
+            if (_isInitialized)
+            {
+                logger.LogWarning("RPC channels are no longer alive. Reinitializing client for service: {Service}", targetServiceName);
+            }
+            await ReinitializeAsync(cancellationToken);
         }
 
         var effectiveTimeout = timeout ?? TimeSpan.FromSeconds(30);
@@ -134,7 +160,7 @@ public class RpcClient(
         try
         {
             var (body, routingKey) = protocol.CreateRequest(targetServiceName, method, parameters, _jsonOptions);
-            
+
             var props = new BasicProperties
             {
                 CorrelationId = correlationId,
@@ -145,6 +171,21 @@ public class RpcClient(
             await _publishLock.WaitAsync(cts.Token);
             try
             {
+                await _publishChannel!.BasicPublishAsync(
+                    exchange: _exchangeName,
+                    routingKey: routingKey,
+                    mandatory: true,
+                    basicProperties: props,
+                    body: body,
+                    cancellationToken: cts.Token);
+            }
+            catch (AlreadyClosedException)
+            {
+                // Channel closed between check and publish. Reinitialize and retry once.
+                _isInitialized = false;
+                logger.LogWarning("Channel closed during publish. Reinitializing and retrying for service: {Service}", targetServiceName);
+                await ReinitializeAsync(cancellationToken);
+
                 await _publishChannel!.BasicPublishAsync(
                     exchange: _exchangeName,
                     routingKey: routingKey,
@@ -173,6 +214,11 @@ public class RpcClient(
             _callbackMapper.TryRemove(correlationId, out _);
             throw;
         }
+    }
+
+    private bool IsChannelsAlive()
+    {
+        return _publishChannel is { IsOpen: true } && _subscribeChannel is { IsOpen: true };
     }
     
     private TResponse? HandleResponse<TResponse>(byte[] responseBytes, string correlationId)
