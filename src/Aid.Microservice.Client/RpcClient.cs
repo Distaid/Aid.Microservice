@@ -144,7 +144,7 @@ public class RpcClient(
         {
             throw new InvalidOperationException(
                 "This RpcClient is not bound to a specific service. " +
-                "Use the overload CallAsync(serviceName, methodName, ...) or create the client via CreateClient(\"serviceName\")");
+                "Create the client via IRpcClientFactory.CreateClient(\"serviceName\").");
         }
     }
     
