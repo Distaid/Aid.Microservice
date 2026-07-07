@@ -14,4 +14,17 @@ public class AsyncService
     {
         await Task.Delay(TimeSpan.FromSeconds(seconds));
     }
+
+    [RpcCallable]
+    public async ValueTask ValueTaskDelay(int seconds)
+    {
+        await Task.Delay(TimeSpan.FromSeconds(seconds));
+    }
+
+    [RpcCallable]
+    public async ValueTask<string> GetValueTaskString(string input)
+    {
+        await Task.Yield();
+        return $"ValueTask processed: {input}";
+    }
 }
