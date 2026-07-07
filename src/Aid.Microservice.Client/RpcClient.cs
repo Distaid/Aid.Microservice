@@ -248,9 +248,13 @@ public class RpcClient(
                 return HandleResponse<TResponse>(responseBytes, correlationId);
             }
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException ex)
         {
-            throw new TimeoutException($"RPC call to {targetServiceName}.{method} timed out.");
+            if (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            throw new TimeoutException($"RPC call to {targetServiceName}.{method} timed out.", ex);
         }
         catch
         {
