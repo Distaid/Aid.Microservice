@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
@@ -57,6 +57,23 @@ public class RabbitMqConnectionService : IRabbitMqConnectionService
         if (IsConnected)
         {
             return true;
+        }
+
+        if (_connection != null)
+        {
+            _logger.LogInformation("RabbitMQ connection exists but is not open. Waiting for automatic recovery...");
+            while (!IsConnected && !cancellationToken.IsCancellationRequested)
+            {
+                try
+                {
+                    await Task.Delay(1000, cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+            }
+            return IsConnected;
         }
 
         await _connectionLock.WaitAsync(cancellationToken);
@@ -168,38 +185,17 @@ public class RabbitMqConnectionService : IRabbitMqConnectionService
             throw new ObjectDisposedException(nameof(RabbitMqConnectionService));
         }
 
-        IChannel channel;
-
-        if (IsConnected)
+        if (!IsConnected)
         {
-            var conn = _connection!;
-            channel = await conn.CreateChannelAsync(cancellationToken: cancellationToken);
-        }
-        else
-        {
-            _logger.LogWarning("RabbitMQ connection is not open. Attempting to reconnect before creating channel...");
-
-            await _connectionLock.WaitAsync(cancellationToken);
-            try
+            _logger.LogWarning("RabbitMQ connection is not open. Attempting to connect/recover before creating channel...");
+            if (!await TryConnectAsync(cancellationToken))
             {
-                if (!IsConnected)
-                {
-                    if (!await TryConnectInternalAsync(cancellationToken))
-                    {
-                        throw new InvalidOperationException("RabbitMQ connection unavailable. Cannot create channel");
-                    }
-                }
-
-                var conn = _connection!;
-                channel = await conn.CreateChannelAsync(cancellationToken: cancellationToken);
-            }
-            finally
-            {
-                _connectionLock.Release();
+                throw new InvalidOperationException("RabbitMQ connection unavailable. Cannot create channel");
             }
         }
 
-        return channel;
+        var conn = _connection!;
+        return await conn.CreateChannelAsync(cancellationToken: cancellationToken);
     }
 
     /// <summary>
