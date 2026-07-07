@@ -125,6 +125,11 @@ catch (TimeoutException)
     // Call timed out (default: 30s)
     Console.WriteLine("Call timed out");
 }
+catch (OperationCanceledException)
+{
+    // User-provided CancellationToken was cancelled
+    Console.WriteLine("Call cancelled by user");
+}
 ```
 
 ## Configuration

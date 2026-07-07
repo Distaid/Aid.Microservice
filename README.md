@@ -315,6 +315,7 @@ RabbitMQ connection is configured via `appsettings.json`:
 | `RetryCount`                | 3              | Connection retry attempts.                                                                       |
 | `RecoveryInterval`          | 5              | Seconds between retries.                                                                         |
 | `DeleteExchangesOnShutdown` | false          | Whether to delete declared exchanges when the server shuts down. Useful for development/cleanup. |
+| `DeleteQueuesOnShutdown`    | false          | Whether to delete declared queues when the server shuts down. Useful for development/cleanup.    |
 
 ### Protocol Registration
 

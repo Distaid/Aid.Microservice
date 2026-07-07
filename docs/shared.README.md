@@ -124,5 +124,7 @@ public class RabbitMqConfiguration
     public string? ExchangeName { get; set; }
     public int RetryCount { get; set; } = 3;
     public int RecoveryInterval { get; set; } = 5;
+    public bool DeleteExchangesOnShutdown { get; set; }
+    public bool DeleteQueuesOnShutdown { get; set; }
 }
 ```

@@ -81,7 +81,7 @@ public class DiService(ILogger<DiService> logger)
 
 ### Async Methods
 
-Full async/await support:
+Full async/await support, including `Task`, `Task<T>`, `ValueTask`, and `ValueTask<T>`:
 
 ```csharp
 [Microservice]
@@ -91,6 +91,13 @@ public class AsyncService
     public async Task Delay(int seconds)
     {
         await Task.Delay(TimeSpan.FromSeconds(seconds));
+    }
+
+    [RpcCallable]
+    public async ValueTask<string> GetData(string id)
+    {
+        await Task.Yield();
+        return $"Data: {id}";
     }
 }
 ```
@@ -267,6 +274,7 @@ public class MyService { ... }
 | `RetryCount`                | 3              | Connection retry attempts.                                                                       |
 | `RecoveryInterval`          | 5              | Seconds between retries.                                                                         |
 | `DeleteExchangesOnShutdown` | false          | Whether to delete declared exchanges when the server shuts down. Useful for development/cleanup. |
+| `DeleteQueuesOnShutdown`    | false          | Whether to delete declared queues when the server shuts down. Useful for development/cleanup.    |
 
 ## Architecture Overview
 
