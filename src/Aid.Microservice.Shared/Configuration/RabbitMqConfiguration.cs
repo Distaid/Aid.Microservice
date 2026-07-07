@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 
 namespace Aid.Microservice.Shared.Configuration;
 
@@ -25,4 +25,6 @@ public class RabbitMqConfiguration
     public int RecoveryInterval { get; set; } = 5;
 
     public bool DeleteExchangesOnShutdown { get; set; }
+
+    public bool DeleteQueuesOnShutdown { get; set; }
 }

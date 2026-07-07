@@ -25,6 +25,7 @@ public class RpcListenerHost(
     private readonly RabbitMqConfiguration _rabbitConfig = rabbitConfig.Value;
     private readonly List<IChannel> _activeChannels = [];
     private readonly HashSet<string> _declaredExchanges = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _declaredQueues = new(StringComparer.OrdinalIgnoreCase);
 
     private readonly JsonSerializerOptions _jsonOptions = new()
     {
@@ -87,7 +88,6 @@ public class RpcListenerHost(
         }
 
         var startedListeners = 0;
-        var skippedListeners = 0;
         foreach (var (serviceName, exchangeName) in endpoints)
         {
             if (stoppingToken.IsCancellationRequested) break;
@@ -96,7 +96,6 @@ public class RpcListenerHost(
             if (!exchangeDeclared.Contains(actualExchange))
             {
                 logger.LogWarning("Exchange '{Exchange}' was not declared. Skipping service '{Service}'", actualExchange, serviceName);
-                skippedListeners++;
                 continue;
             }
 
@@ -131,9 +130,11 @@ public class RpcListenerHost(
             queue: queueName,
             durable: true,
             exclusive: false,
-            autoDelete: true,
+            autoDelete: false,
             arguments: null,
             cancellationToken: token);
+
+        _declaredQueues.Add(queueName);
 
         var bindingKey = protocol.GetServiceBindingKey(serviceName);
         await channel.QueueBindAsync(
@@ -261,6 +262,35 @@ public class RpcListenerHost(
     {
         logger.LogInformation("Stopping RPC Listeners...");
 
+        if (_rabbitConfig.DeleteQueuesOnShutdown && _declaredQueues.Count > 0)
+        {
+            logger.LogInformation("Deleting {Count} declared queues...", _declaredQueues.Count);
+
+            try
+            {
+                var channel = await connectionService.CreateChannelAsync(cancellationToken);
+                foreach (var queue in _declaredQueues)
+                {
+                    try
+                    {
+                        await channel.QueueDeleteAsync(queue, cancellationToken: cancellationToken);
+                        logger.LogInformation("Queue '{Queue}' deleted", queue);
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogWarning(ex, "Failed to delete queue '{Queue}'", queue);
+                    }
+                }
+
+                await channel.CloseAsync(cancellationToken);
+                channel.Dispose();
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to create channel for queue cleanup");
+            }
+        }
+
         if (_rabbitConfig.DeleteExchangesOnShutdown && _declaredExchanges.Count > 0)
         {
             logger.LogInformation("Deleting {Count} declared exchanges...", _declaredExchanges.Count);
@@ -308,6 +338,7 @@ public class RpcListenerHost(
 
         _activeChannels.Clear();
         _declaredExchanges.Clear();
+        _declaredQueues.Clear();
         await base.StopAsync(cancellationToken);
     }
 }
