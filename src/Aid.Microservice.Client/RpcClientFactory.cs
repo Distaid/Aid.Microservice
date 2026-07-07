@@ -102,17 +102,42 @@ public class RpcClientFactory : IRpcClientFactory, IAsyncDisposable
         }
 
         var key = $"{serviceName}|{protocol.GetType().Name}|{exchangeName}";
-        return _clients.GetOrAdd(key, _ =>
+        
+        while (true)
         {
-            var client = new RpcClient(
+            if (_clients.TryGetValue(key, out var existingClient))
+            {
+                if (existingClient is RefCountedRpcClient refCounted)
+                {
+                    try
+                    {
+                        refCounted.Increment();
+                        return refCounted;
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        // The client was disposed just as we fetched it. Loop and try again.
+                    }
+                }
+            }
+
+            var newClient = new RpcClient(
                 _connectionService,
                 _loggerFactory.CreateLogger<RpcClient>(),
                 protocol,
                 serviceName,
                 exchangeName);
 
-            return new DisposingRpcClient(this, key, client);
-        });
+            var wrapper = new RefCountedRpcClient(this, key, newClient);
+
+            if (_clients.TryAdd(key, wrapper))
+            {
+                return wrapper;
+            }
+            
+            // Clean up the concurrently created unused client
+            newClient.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        }
     }
 
     private void RemoveFromCache(string key)
@@ -120,8 +145,24 @@ public class RpcClientFactory : IRpcClientFactory, IAsyncDisposable
         _clients.TryRemove(key, out _);
     }
 
-    private sealed class DisposingRpcClient(RpcClientFactory owner, string key, IRpcClient inner) : IRpcClient
+    private sealed class RefCountedRpcClient(RpcClientFactory owner, string key, IRpcClient inner) : IRpcClient
     {
+        private int _refCount = 1;
+        private readonly object _lock = new();
+        private bool _disposed;
+
+        public void Increment()
+        {
+            lock (_lock)
+            {
+                if (_disposed)
+                {
+                    throw new ObjectDisposedException(nameof(RefCountedRpcClient));
+                }
+                _refCount++;
+            }
+        }
+
         public Task InitializeAsync(CancellationToken token = default) => inner.InitializeAsync(token);
 
         public Task CallAsync(string method, object? parameters = null, TimeSpan? timeout = null, CancellationToken cancellationToken = default)
@@ -132,18 +173,62 @@ public class RpcClientFactory : IRpcClientFactory, IAsyncDisposable
 
         public async ValueTask DisposeAsync()
         {
-            await inner.DisposeAsync();
-            owner.RemoveFromCache(key);
+            bool shouldDispose = false;
+            lock (_lock)
+            {
+                if (!_disposed)
+                {
+                    _refCount--;
+                    if (_refCount <= 0)
+                    {
+                        _disposed = true;
+                        shouldDispose = true;
+                    }
+                }
+            }
+
+            if (shouldDispose)
+            {
+                await inner.DisposeAsync();
+                owner.RemoveFromCache(key);
+            }
+        }
+
+        public async Task ForceDisposeAsync()
+        {
+            bool shouldDispose = false;
+            lock (_lock)
+            {
+                if (!_disposed)
+                {
+                    _disposed = true;
+                    shouldDispose = true;
+                }
+            }
+
+            if (shouldDispose)
+            {
+                await inner.DisposeAsync();
+                owner.RemoveFromCache(key);
+            }
         }
     }
     
     public async ValueTask DisposeAsync()
     {
-        foreach (var client in _clients.Values)
+        var clientsList = _clients.Values.ToList();
+        foreach (var client in clientsList)
         {
             try
             {
-                await client.DisposeAsync();
+                if (client is RefCountedRpcClient refCounted)
+                {
+                    await refCounted.ForceDisposeAsync();
+                }
+                else
+                {
+                    await client.DisposeAsync();
+                }
             }
             catch
             {
