@@ -229,6 +229,32 @@ public class RpcEndpointRegistry(
                 call
             );
         }
+        else if (method.ReturnType == typeof(ValueTask))
+        {
+            // ValueTask: await task; return null;
+            var asTaskMethod = typeof(ValueTask).GetMethod(nameof(ValueTask.AsTask))!;
+            var taskCall = Expression.Call(call, asTaskMethod);
+            resultExpression = Expression.Call(
+                typeof(RpcEndpointRegistry),
+                nameof(WrapVoidTaskAsync),
+                Type.EmptyTypes,
+                taskCall
+            );
+        }
+        else if (method.ReturnType.IsGenericType && method.ReturnType.GetGenericTypeDefinition() == typeof(ValueTask<>))
+        {
+            // ValueTask<T>: return (object) await task;
+            var resultType = method.ReturnType.GetGenericArguments()[0];
+            var valueTaskType = typeof(ValueTask<>).MakeGenericType(resultType);
+            var asTaskMethod = valueTaskType.GetMethod(nameof(ValueTask<object>.AsTask))!;
+            var taskCall = Expression.Call(call, asTaskMethod);
+            resultExpression = Expression.Call(
+                typeof(RpcEndpointRegistry),
+                nameof(WrapGenericTaskAsync),
+                [resultType],
+                taskCall
+            );
+        }
         else
         {
             //T: return Task.FromResult((object)result)
