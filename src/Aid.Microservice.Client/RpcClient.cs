@@ -25,6 +25,7 @@ public class RpcClient(
     
     private IChannel? _publishChannel;
     private readonly SemaphoreSlim _publishLock = new(1, 1);
+    private readonly SemaphoreSlim _initLock = new(1, 1);
     
     private IChannel? _subscribeChannel;
     private string? _replyQueueName;
@@ -46,7 +47,19 @@ public class RpcClient(
             return;
         }
 
-        await ReinitializeAsync(token);
+        await _initLock.WaitAsync(token);
+        try
+        {
+            if (_isInitialized)
+            {
+                return;
+            }
+            await ReinitializeAsync(token);
+        }
+        finally
+        {
+            _initLock.Release();
+        }
     }
 
     /// <summary>
@@ -55,6 +68,13 @@ public class RpcClient(
     /// </summary>
     private async Task ReinitializeAsync(CancellationToken token)
     {
+        // Cancel all pending callbacks from the previous connection/channels
+        foreach (var tcs in _callbackMapper.Values)
+        {
+            tcs.TrySetException(new RpcCallException("RPC connection reset. Pending call aborted.", null));
+        }
+        _callbackMapper.Clear();
+
         if (!await connectionService.TryConnectAsync(token))
         {
             throw new InvalidOperationException("RPC Client failed to connect to RabbitMQ.");
@@ -141,11 +161,22 @@ public class RpcClient(
 
         if (!_isInitialized || !IsChannelsAlive())
         {
-            if (_isInitialized)
+            await _initLock.WaitAsync(cancellationToken);
+            try
             {
-                logger.LogWarning("RPC channels are no longer alive. Reinitializing client for service: {Service}", targetServiceName);
+                if (!_isInitialized || !IsChannelsAlive())
+                {
+                    if (_isInitialized)
+                    {
+                        logger.LogWarning("RPC channels are no longer alive. Reinitializing client for service: {Service}", targetServiceName);
+                    }
+                    await ReinitializeAsync(cancellationToken);
+                }
             }
-            await ReinitializeAsync(cancellationToken);
+            finally
+            {
+                _initLock.Release();
+            }
         }
 
         var effectiveTimeout = timeout ?? TimeSpan.FromSeconds(30);
@@ -184,7 +215,19 @@ public class RpcClient(
                 // Channel closed between check and publish. Reinitialize and retry once.
                 _isInitialized = false;
                 logger.LogWarning("Channel closed during publish. Reinitializing and retrying for service: {Service}", targetServiceName);
-                await ReinitializeAsync(cancellationToken);
+                
+                await _initLock.WaitAsync(cancellationToken);
+                try
+                {
+                    if (!_isInitialized || !IsChannelsAlive())
+                    {
+                        await ReinitializeAsync(cancellationToken);
+                    }
+                }
+                finally
+                {
+                    _initLock.Release();
+                }
 
                 await _publishChannel!.BasicPublishAsync(
                     exchange: _exchangeName,
@@ -257,6 +300,7 @@ public class RpcClient(
         }
         _callbackMapper.Clear();
         _publishLock.Dispose();
+        _initLock.Dispose();
 
         if (_publishChannel != null)
         {
