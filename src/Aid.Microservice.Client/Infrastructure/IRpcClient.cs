@@ -38,4 +38,44 @@ public interface IRpcClient : IAsyncDisposable
         object? parameters = null,
         TimeSpan? timeout = null,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Calls a remote query without expecting a return value.
+    /// Automatically prefixes the query name with "query.".
+    /// </summary>
+    Task CallQuery(
+        string queryName,
+        object? parameters = null,
+        TimeSpan? timeout = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Calls a remote query and deserializes the result.
+    /// Automatically prefixes the query name with "query.".
+    /// </summary>
+    Task<TResponse?> CallQuery<TResponse>(
+        string queryName,
+        object? parameters = null,
+        TimeSpan? timeout = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Calls a remote query without expecting a return value.
+    /// Automatically prefixes the query name with "query.".
+    /// </summary>
+    Task CallQueryAsync(
+        string queryName,
+        object? parameters = null,
+        TimeSpan? timeout = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Calls a remote query and deserializes the result.
+    /// Automatically prefixes the query name with "query.".
+    /// </summary>
+    Task<TResponse?> CallQueryAsync<TResponse>(
+        string queryName,
+        object? parameters = null,
+        TimeSpan? timeout = null,
+        CancellationToken cancellationToken = default);
 }

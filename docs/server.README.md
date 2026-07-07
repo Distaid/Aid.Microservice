@@ -121,6 +121,45 @@ public class ProxyService(IRpcProxyFactory factory)
 }
 ```
 
+### CQRS & Single-Queue Handlers (Queries/Commands)
+
+Instead of grouping multiple methods into a single class and sharing one RabbitMQ queue, you can declare standalone query/command handlers using the `[MicroserviceQuery]` attribute.
+
+Each handler class represents a single, independent queue and routing key, providing better performance isolation and scaling options:
+* **Queue Name**: `{ExchangeName}_query_{QueryName}` (e.g., `aid_rpc_query_get_product`).
+* **Routing/Binding Key**: `query.{QueryName}` (e.g., `query.get_product`).
+
+#### Key Features:
+1. **Name Inference**: Suffixes like `Query`, `Command`, `QueryHandler`, `CommandHandler`, or `Handler` are automatically stripped from the class name to form the `QueryName` (e.g., `GetProductQueryHandler` -> `get_product`). You can also specify an alias: `[MicroserviceQuery("custom_query_name")]`.
+2. **Handle Method**: The class must contain a public `Handle` or `HandleAsync` method. If the method is asynchronous, it is recommended to name it `HandleAsync` (otherwise, a log warning will be shown).
+3. **Complex Type Binding**: If the handler method accepts exactly one complex parameter (excluding `CancellationToken`), the incoming payload is deserialized and bound to it directly as a CQRS Request object.
+4. **DI Registration**: Query classes are automatically scanned and registered in the DI container as `Scoped` services, allowing dependency injection.
+
+#### Example:
+
+```csharp
+public record GetProductRequest(int Id, string Category);
+public record ProductDto(int Id, string Name, string Category);
+
+[MicroserviceQuery]
+public class GetProductQueryHandler
+{
+    private readonly ILogger<GetProductQueryHandler> _logger;
+
+    public GetProductQueryHandler(ILogger<GetProductQueryHandler> logger)
+    {
+        _logger = logger;
+    }
+
+    public async Task<ProductDto> HandleAsync(GetProductRequest request, CancellationToken token)
+    {
+        _logger.LogInformation("Processing product query for ID: {Id}", request.Id);
+        await Task.Yield();
+        return new ProductDto(request.Id, $"Product {request.Id}", request.Category);
+    }
+}
+```
+
 ### Per-Service Serializers
 
 Assign a custom serializer to an entire service:

@@ -73,13 +73,55 @@ public class RpcRequestDispatcher(
             return [];
         }
 
-        var args = new object?[methodParams.Length];
+        var payloadParams = methodParams.Where(p => p.ParameterType != typeof(CancellationToken)).ToList();
+
+        // If there is exactly one complex parameter (e.g. CQRS Request object), bind the whole input dictionary to it.
+        if (payloadParams.Count == 1 && IsComplexType(payloadParams[0].ParameterType))
+        {
+            var targetParam = payloadParams[0];
+            object? deserializedValue = null;
+            if (inputParams != null && inputParams.Count > 0)
+            {
+                try
+                {
+                    var jsonBytes = JsonSerializer.SerializeToUtf8Bytes(inputParams, _jsonOptions);
+                    deserializedValue = JsonSerializer.Deserialize(jsonBytes, targetParam.ParameterType, _jsonOptions);
+                }
+                catch (Exception ex)
+                {
+                    throw new ArgumentException($"Failed to deserialize complex request parameter '{targetParam.Name}'. Expected: {targetParam.ParameterType.Name}. Error: {ex.Message}");
+                }
+            }
+
+            var args = new object?[methodParams.Length];
+            for (var i = 0; i < methodParams.Length; i++)
+            {
+                var paramInfo = methodParams[i];
+                if (paramInfo.ParameterType == typeof(CancellationToken))
+                {
+                    args[i] = CancellationToken.None;
+                }
+                else
+                {
+                    args[i] = deserializedValue;
+                }
+            }
+            return args;
+        }
+
+        var resArgs = new object?[methodParams.Length];
 
         for (var i = 0; i < methodParams.Length; i++)
         {
             var paramInfo = methodParams[i];
-            var paramName = paramInfo.Name!;
             
+            if (paramInfo.ParameterType == typeof(CancellationToken))
+            {
+                resArgs[i] = CancellationToken.None;
+                continue;
+            }
+
+            var paramName = paramInfo.Name!;
             JsonElement? jsonValue = null;
             
             if (inputParams != null && inputParams.TryGetValue(paramName, out var paramValue))
@@ -91,13 +133,13 @@ public class RpcRequestDispatcher(
             {
                 if (jsonValue.Value.ValueKind == JsonValueKind.Null)
                 {
-                    args[i] = null;
+                    resArgs[i] = null;
                 }
                 else
                 {
                     try
                     {
-                        args[i] = jsonValue.Value.Deserialize(paramInfo.ParameterType, _jsonOptions);
+                        resArgs[i] = jsonValue.Value.Deserialize(paramInfo.ParameterType, _jsonOptions);
                     }
                     catch (Exception ex)
                     {
@@ -109,11 +151,11 @@ public class RpcRequestDispatcher(
             {
                 if (paramInfo.HasDefaultValue)
                 {
-                    args[i] = paramInfo.DefaultValue;
+                    resArgs[i] = paramInfo.DefaultValue;
                 }
                 else if (IsNullable(paramInfo))
                 {
-                    args[i] = null;
+                    resArgs[i] = null;
                 }
                 else
                 {
@@ -122,7 +164,23 @@ public class RpcRequestDispatcher(
             }
         }
         
-        return args;
+        return resArgs;
+    }
+
+    private static bool IsComplexType(Type type)
+    {
+        if (type.IsPrimitive || type == typeof(string) || type.IsEnum || type == typeof(decimal) || type == typeof(Guid) || type == typeof(DateTime) || type == typeof(TimeSpan) || type == typeof(DateTimeOffset))
+        {
+            return false;
+        }
+        
+        var underlying = Nullable.GetUnderlyingType(type);
+        if (underlying != null)
+        {
+            return IsComplexType(underlying);
+        }
+
+        return true;
     }
 
     private static bool IsNullable(ParameterInfo param)

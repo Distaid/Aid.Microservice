@@ -1,4 +1,4 @@
-﻿using Aid.Microservice.Client;
+using Aid.Microservice.Client;
 using Aid.Microservice.Shared.Models;
 using Aid.Microservice.Shared.Protocols;
 
@@ -40,6 +40,14 @@ await using var diClient = factory.CreateClient("di");
 await diClient.CallAsync<string>("log");
 Console.WriteLine("[default] di.log() => done");
 
+// --- Queries / Commands (Single Queue Handlers) ---
+// CallQuery automatically prefixes "getproduct" with "query." (routing key: query.getproduct)
+var product = await simpleClient.CallQuery<ProductDto>("getproduct", new { Id = 42, Category = "Electronics" });
+Console.WriteLine($"[query] getproduct(42, 'Electronics') => {product?.Name} ({product?.Category})");
+
+await simpleClient.CallQuery("clear_cache");
+Console.WriteLine("[query] clear_cache() => done");
+
 // =========================================================================
 // NAMEKO (Python) RPC CALLS
 // =========================================================================
@@ -72,3 +80,5 @@ Console.WriteLine($"[args] greeting_service.hello('JDog') => {result2}");
 await using var namekoClient3 = factory.CreateClient("greeting_service", new NamekoProtocol());
 var result3 = await namekoClient3.CallAsync<string>("hello", new RpcNamekoRequest([], new { name = "Alice" }));
 Console.WriteLine($"[kwargs] greeting_service.hello(name='Alice') => {result3}");
+
+public record ProductDto(int Id, string Name, string Category);

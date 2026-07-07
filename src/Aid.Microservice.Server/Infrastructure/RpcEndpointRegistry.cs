@@ -108,11 +108,110 @@ public class RpcEndpointRegistry(
             }
         }
 
-        logger.LogDebug("── Registered {Services} service{ServicesPlural} with {Methods} method{MethodsPlural} ──",
+        var queryTypes = assembly.GetTypes()
+            .Where(t => t is { IsClass: true, IsAbstract: false } && t.GetCustomAttribute<MicroserviceQueryAttribute>() is not null);
+
+        var totalQueries = 0;
+        foreach (var queryType in queryTypes)
+        {
+            var queryAttr = queryType.GetCustomAttribute<MicroserviceQueryAttribute>()!;
+            queryAttr.SetQueryName(queryType);
+            var queryName = queryAttr.QueryName;
+            var serviceName = $"query_{queryName}";
+
+            var method = queryType
+                .GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+                .FirstOrDefault(m => m.Name.Equals("Handle", StringComparison.OrdinalIgnoreCase) || m.Name.Equals("HandleAsync", StringComparison.OrdinalIgnoreCase));
+
+            if (method == null)
+            {
+                logger.LogWarning("Query handler '{Type}' does not contain a public 'Handle' or 'HandleAsync' method. Skipping", queryType.Name);
+                continue;
+            }
+
+            var isAsync = typeof(Task).IsAssignableFrom(method.ReturnType) || 
+                          (method.ReturnType.IsGenericType && 
+                           (method.ReturnType.GetGenericTypeDefinition() == typeof(ValueTask<>) || 
+                            method.ReturnType == typeof(ValueTask)));
+
+            if (isAsync && method.Name.Equals("Handle", StringComparison.Ordinal))
+            {
+                logger.LogWarning("Method 'Handle' in query handler '{Type}' is asynchronous. It is recommended to use 'HandleAsync' name.", queryType.Name);
+            }
+
+            try
+            {
+                var fastDelegate = CreateMethodDelegate(queryType, method);
+                var methodInfo = new RpcMethodInfo(
+                    ServiceType: queryType,
+                    Method: method,
+                    Parameters: method.GetParameters(),
+                    FastInvoke: fastDelegate,
+                    SerializerType: queryAttr.SerializerType
+                );
+
+                var methodDict = new Dictionary<string, RpcMethodInfo>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["handle"] = methodInfo,
+                    ["handleasync"] = methodInfo,
+                    [queryName] = methodInfo
+                };
+
+                if (_endpoints.TryAdd(serviceName, methodDict))
+                {
+                    totalQueries++;
+                    var exchanges = ResolveExchangesForQuery(queryAttr);
+                    _serviceExchanges[serviceName] = exchanges;
+
+                    logger.LogDebug("  [Query] {QueryName,-14} → {Exchanges} (Queue: query_{QueryName2})",
+                        queryName,
+                        string.Join(", ", exchanges),
+                        queryName);
+                }
+                else
+                {
+                    logger.LogWarning("Duplicate Query Name '{Query}'. Skipping implementation {Type}", queryName, queryType.Name);
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed to compile delegate for Query {Type}", queryType.Name);
+            }
+        }
+
+        logger.LogDebug("── Registered {Services} service{ServicesPlural} with {Methods} method{MethodsPlural} and {Queries} query handler{QueriesPlural} ──",
             totalServices,
             totalServices != 1 ? "s" : "",
             totalMethods,
-            totalMethods != 1 ? "s" : "");
+            totalMethods != 1 ? "s" : "",
+            totalQueries,
+            totalQueries != 1 ? "s" : "");
+    }
+
+    private HashSet<string> ResolveExchangesForQuery(MicroserviceQueryAttribute queryAttr)
+    {
+        var exchanges = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        if (!string.IsNullOrWhiteSpace(queryAttr.ExchangeName))
+        {
+            exchanges.Add(queryAttr.ExchangeName!);
+        }
+
+        if (exchanges.Count == 0 && queryAttr.SerializerType != null)
+        {
+            var exchangeName = serializerRegistry.GetSerializer(queryAttr.SerializerType)?.ExchangeName;
+            if (!string.IsNullOrWhiteSpace(exchangeName))
+            {
+                exchanges.Add(exchangeName);
+            }
+        }
+
+        if (exchanges.Count == 0)
+        {
+            exchanges.Add(protocol.DefaultSerializer.ExchangeName ?? "aid_rpc");
+        }
+
+        return exchanges;
     }
     
     public bool TryGetMethod(string serviceName, string methodName, out RpcMethodInfo? endpointInfo)

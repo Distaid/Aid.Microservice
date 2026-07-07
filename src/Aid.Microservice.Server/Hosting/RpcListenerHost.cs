@@ -136,7 +136,10 @@ public class RpcListenerHost(
 
         _declaredQueues.Add(queueName);
 
-        var bindingKey = protocol.GetServiceBindingKey(serviceName);
+        var bindingKey = serviceName.StartsWith("query_", StringComparison.OrdinalIgnoreCase)
+            ? $"query.{serviceName[6..]}"
+            : protocol.GetServiceBindingKey(serviceName);
+
         await channel.QueueBindAsync(
             queue: queueName,
             exchange: exchangeName,

@@ -1,4 +1,4 @@
-﻿namespace Aid.Microservice.Server.Proxy;
+namespace Aid.Microservice.Server.Proxy;
 
 /// <summary>
 /// A lightweight proxy to call methods on a remote RPC service.
@@ -30,6 +30,46 @@ public interface IRpcProxy
     /// <returns>The deserialized result, or <c>null</c> if the method returns void.</returns>
     Task<TResponse?> CallAsync<TResponse>(
         string method,
+        object? parameters = null,
+        TimeSpan? timeout = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Calls a remote query without expecting a return value.
+    /// Automatically prefixes the query name with "query.".
+    /// </summary>
+    Task CallQuery(
+        string queryName,
+        object? parameters = null,
+        TimeSpan? timeout = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Calls a remote query and deserializes the result.
+    /// Automatically prefixes the query name with "query.".
+    /// </summary>
+    Task<TResponse?> CallQuery<TResponse>(
+        string queryName,
+        object? parameters = null,
+        TimeSpan? timeout = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Calls a remote query without expecting a return value.
+    /// Automatically prefixes the query name with "query.".
+    /// </summary>
+    Task CallQueryAsync(
+        string queryName,
+        object? parameters = null,
+        TimeSpan? timeout = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Calls a remote query and deserializes the result.
+    /// Automatically prefixes the query name with "query.".
+    /// </summary>
+    Task<TResponse?> CallQueryAsync<TResponse>(
+        string queryName,
         object? parameters = null,
         TimeSpan? timeout = null,
         CancellationToken cancellationToken = default);

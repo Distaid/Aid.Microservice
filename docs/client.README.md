@@ -40,6 +40,14 @@ Task<T?> CallAsync<T>(string method, object? parameters = null, TimeSpan? timeou
 
 // Call without return type (fire-and-forget style)
 Task CallAsync(string method, object? parameters = null, TimeSpan? timeout = null, CancellationToken ct = default);
+
+// Call standalone query/command with return type (prefixes queryName with "query." automatically)
+Task<TResponse?> CallQueryAsync<TResponse>(string queryName, object? parameters = null, TimeSpan? timeout = null, CancellationToken ct = default);
+Task<TResponse?> CallQuery<TResponse>(string queryName, object? parameters = null, TimeSpan? timeout = null, CancellationToken ct = default);
+
+// Call standalone query/command without return type (prefixes queryName with "query." automatically)
+Task CallQueryAsync(string queryName, object? parameters = null, TimeSpan? timeout = null, CancellationToken ct = default);
+Task CallQuery(string queryName, object? parameters = null, TimeSpan? timeout = null, CancellationToken ct = default);
 ```
 
 | Parameter           | Required | Default | Description                                              |

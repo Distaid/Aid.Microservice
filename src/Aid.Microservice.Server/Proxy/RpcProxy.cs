@@ -1,4 +1,4 @@
-﻿using Aid.Microservice.Client.Infrastructure;
+using Aid.Microservice.Client.Infrastructure;
 
 namespace Aid.Microservice.Server.Proxy;
 
@@ -31,6 +31,62 @@ public class RpcProxy(IRpcClient client) : IRpcProxy
     {
         return client.CallAsync<TResponse>(
             method,
+            parameters,
+            timeout,
+            cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task CallQuery(
+        string queryName,
+        object? parameters = null,
+        TimeSpan? timeout = null,
+        CancellationToken cancellationToken = default)
+    {
+        return client.CallQuery(
+            queryName,
+            parameters,
+            timeout,
+            cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task<TResponse?> CallQuery<TResponse>(
+        string queryName,
+        object? parameters = null,
+        TimeSpan? timeout = null,
+        CancellationToken cancellationToken = default)
+    {
+        return client.CallQuery<TResponse>(
+            queryName,
+            parameters,
+            timeout,
+            cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task CallQueryAsync(
+        string queryName,
+        object? parameters = null,
+        TimeSpan? timeout = null,
+        CancellationToken cancellationToken = default)
+    {
+        return client.CallQueryAsync(
+            queryName,
+            parameters,
+            timeout,
+            cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task<TResponse?> CallQueryAsync<TResponse>(
+        string queryName,
+        object? parameters = null,
+        TimeSpan? timeout = null,
+        CancellationToken cancellationToken = default)
+    {
+        return client.CallQueryAsync<TResponse>(
+            queryName,
             parameters,
             timeout,
             cancellationToken);

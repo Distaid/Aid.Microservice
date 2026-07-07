@@ -28,6 +28,17 @@ Marks a method as an RPC endpoint.
 [RpcCallable(SerializerType = typeof(NamekoSerializer))] // per-method serializer
 ```
 
+### `[MicroserviceQuery]`
+
+Marks a class as a single-endpoint Microservice Query or Command handler (CQRS style).
+
+```csharp
+[MicroserviceQuery]                                             // query name: class name minus suffixes (e.g. "Query", "QueryHandler", "Command")
+[MicroserviceQuery("custom_query")]                             // explicit query name
+[MicroserviceQuery(SerializerType = typeof(NamekoSerializer))]  // custom serializer
+[MicroserviceQuery(ExchangeName = "my_rpc")]                    // explicit exchange
+```
+
 ## Protocols
 
 ### `IRpcProtocol`

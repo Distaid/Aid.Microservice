@@ -1,4 +1,4 @@
-﻿using Aid.Microservice.Server.Hosting;
+using Aid.Microservice.Server.Hosting;
 using Aid.Microservice.Server.Infrastructure;
 using Aid.Microservice.Server.Proxy;
 using Aid.Microservice.Shared.Attributes;
@@ -76,7 +76,8 @@ public static class MicroserviceExtensions
     private static void RegisterServiceClasses(IServiceCollection services, Assembly assembly)
     {
         var serviceTypes = assembly.GetTypes()
-            .Where(t => t is { IsClass: true, IsAbstract: false } && t.GetCustomAttribute<MicroserviceAttribute>() != null);
+            .Where(t => t is { IsClass: true, IsAbstract: false } && 
+                (t.GetCustomAttribute<MicroserviceAttribute>() != null || t.GetCustomAttribute<MicroserviceQueryAttribute>() != null));
 
         foreach (var type in serviceTypes)
         {

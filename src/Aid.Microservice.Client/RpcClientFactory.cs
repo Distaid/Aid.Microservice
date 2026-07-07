@@ -171,9 +171,21 @@ public class RpcClientFactory : IRpcClientFactory, IAsyncDisposable
         public Task<TResponse?> CallAsync<TResponse>(string method, object? parameters = null, TimeSpan? timeout = null, CancellationToken cancellationToken = default)
             => inner.CallAsync<TResponse>(method, parameters, timeout, cancellationToken);
 
+        public Task CallQuery(string queryName, object? parameters = null, TimeSpan? timeout = null, CancellationToken cancellationToken = default)
+            => inner.CallQuery(queryName, parameters, timeout, cancellationToken);
+
+        public Task<TResponse?> CallQuery<TResponse>(string queryName, object? parameters = null, TimeSpan? timeout = null, CancellationToken cancellationToken = default)
+            => inner.CallQuery<TResponse>(queryName, parameters, timeout, cancellationToken);
+
+        public Task CallQueryAsync(string queryName, object? parameters = null, TimeSpan? timeout = null, CancellationToken cancellationToken = default)
+            => inner.CallQueryAsync(queryName, parameters, timeout, cancellationToken);
+
+        public Task<TResponse?> CallQueryAsync<TResponse>(string queryName, object? parameters = null, TimeSpan? timeout = null, CancellationToken cancellationToken = default)
+            => inner.CallQueryAsync<TResponse>(queryName, parameters, timeout, cancellationToken);
+
         public async ValueTask DisposeAsync()
         {
-            bool shouldDispose = false;
+            var shouldDispose = false;
             lock (_lock)
             {
                 if (!_disposed)
@@ -196,7 +208,7 @@ public class RpcClientFactory : IRpcClientFactory, IAsyncDisposable
 
         public async Task ForceDisposeAsync()
         {
-            bool shouldDispose = false;
+            var shouldDispose = false;
             lock (_lock)
             {
                 if (!_disposed)

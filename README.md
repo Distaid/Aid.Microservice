@@ -137,6 +137,28 @@ public class AsyncService
 }
 ```
 
+- **CQRS / Single-Queue Handlers** — declare query or command handlers in dedicated classes using `[MicroserviceQuery]`, giving each handler its own dedicated RabbitMQ queue for better isolation and scaling:
+
+```csharp
+public record GetProductRequest(int Id, string Category);
+
+[MicroserviceQuery] // Queue name: aid_rpc_query_get_product
+public class GetProductQueryHandler
+{
+    // Binds incoming payload to the complex parameter automatically
+    public async Task<ProductDto> HandleAsync(GetProductRequest request, CancellationToken token)
+    {
+        await Task.Yield();
+        return new ProductDto(request.Id, $"Product #{request.Id}", request.Category);
+    }
+}
+```
+
+On the client side, call queries using dedicated methods:
+```csharp
+var product = await client.CallQuery<ProductDto>("get_product", new { Id = 42, Category = "Electronics" });
+```
+
 - **Per-Service Serializers** — assign a custom serializer to an entire service:
 
 ```csharp

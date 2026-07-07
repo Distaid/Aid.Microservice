@@ -248,13 +248,146 @@ public class RpcClient(
                 return HandleResponse<TResponse>(responseBytes, correlationId);
             }
         }
-        catch (OperationCanceledException ex)
+        catch (OperationCanceledException)
         {
             if (cancellationToken.IsCancellationRequested)
             {
                 throw;
             }
-            throw new TimeoutException($"RPC call to {targetServiceName}.{method} timed out.", ex);
+            throw new TimeoutException($"RPC call to {targetServiceName}.{method} timed out.");
+        }
+        catch
+        {
+            _callbackMapper.TryRemove(correlationId, out _);
+            throw;
+        }
+    }
+
+    /// <inheritdoc />
+    public Task CallQuery(string queryName, object? parameters = null, TimeSpan? timeout = null, CancellationToken cancellationToken = default)
+    {
+        return CallQueryAsync(queryName, parameters, timeout, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task<TResponse?> CallQuery<TResponse>(string queryName, object? parameters = null, TimeSpan? timeout = null, CancellationToken cancellationToken = default)
+    {
+        return CallQueryAsync<TResponse>(queryName, parameters, timeout, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task CallQueryAsync(string queryName, object? parameters = null, TimeSpan? timeout = null, CancellationToken cancellationToken = default)
+    {
+        return CallQueryAsync<object>(queryName, parameters, timeout, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<TResponse?> CallQueryAsync<TResponse>(
+        string queryName,
+        object? parameters = null,
+        TimeSpan? timeout = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(queryName))
+        {
+            throw new ArgumentException("Query name must not be null or whitespace", nameof(queryName));
+        }
+
+        if (!_isInitialized || !IsChannelsAlive())
+        {
+            await _initLock.WaitAsync(cancellationToken);
+            try
+            {
+                if (!_isInitialized || !IsChannelsAlive())
+                {
+                    if (_isInitialized)
+                    {
+                        logger.LogWarning("RPC channels are no longer alive. Reinitializing client for query: {Query}", queryName);
+                    }
+                    await ReinitializeAsync(cancellationToken);
+                }
+            }
+            finally
+            {
+                _initLock.Release();
+            }
+        }
+
+        var effectiveTimeout = timeout ?? TimeSpan.FromSeconds(30);
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        cts.CancelAfter(effectiveTimeout);
+
+        var correlationId = Guid.NewGuid().ToString("N");
+        var tcs = new TaskCompletionSource<byte[]>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        if (!_callbackMapper.TryAdd(correlationId, tcs)) throw new InvalidOperationException("CorrelationId collision");
+
+        try
+        {
+            var (body, routingKey) = protocol.CreateRequest("query", queryName, parameters, _jsonOptions);
+
+            var props = new BasicProperties
+            {
+                CorrelationId = correlationId,
+                ReplyTo = _replyQueueName,
+                ContentType = protocol.ContentType
+            };
+
+            await _publishLock.WaitAsync(cts.Token);
+            try
+            {
+                await _publishChannel!.BasicPublishAsync(
+                    exchange: _exchangeName,
+                    routingKey: routingKey,
+                    mandatory: true,
+                    basicProperties: props,
+                    body: body,
+                    cancellationToken: cts.Token);
+            }
+            catch (AlreadyClosedException)
+            {
+                _isInitialized = false;
+                logger.LogWarning("Channel closed during publish. Reinitializing and retrying for query: {Query}", queryName);
+                
+                await _initLock.WaitAsync(cancellationToken);
+                try
+                {
+                    if (!_isInitialized || !IsChannelsAlive())
+                    {
+                        await ReinitializeAsync(cancellationToken);
+                    }
+                }
+                finally
+                {
+                    _initLock.Release();
+                }
+
+                await _publishChannel!.BasicPublishAsync(
+                    exchange: _exchangeName,
+                    routingKey: routingKey,
+                    mandatory: true,
+                    basicProperties: props,
+                    body: body,
+                    cancellationToken: cts.Token);
+            }
+            finally
+            {
+                _publishLock.Release();
+            }
+
+            await using (cts.Token.Register(() => { if (_callbackMapper.TryRemove(correlationId, out var r)) r.TrySetCanceled(); }))
+            {
+                var responseBytes = await tcs.Task.ConfigureAwait(false);
+                return HandleResponse<TResponse>(responseBytes, correlationId);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            throw new TimeoutException($"RPC query call to {queryName} timed out.");
         }
         catch
         {
