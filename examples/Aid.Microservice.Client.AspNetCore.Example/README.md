@@ -7,10 +7,10 @@ This example demonstrates how to integrate the RPC client into an ASP.NET Core w
 - **DI Registration:** `builder.Services.AddAidMicroserviceClient()` registers connection lifecycle and `IRpcClientFactory`.
 - **Strongly-Typed Clients:** `builder.Services.AddAidMicroserviceGeneratedClients()` registers source-generated typed client proxies (e.g. `ISimpleClient`).
 - **Minimal API Endpoints:**
-  - `GET /typed/multiple` — Calls RPC via injected typed client (`ISimpleClient`).
-  - `GET /` — Calls RPC dynamically via `IRpcClientFactory`.
-  - `GET /nameko` — Calls a Python Nameko microservice.
-  - `GET /mixed` — Demonstrates calling methods with different protocols on the same service.
+  - `GET /typed/multiple` - Calls RPC via injected typed client (`ISimpleClient`).
+  - `GET /` - Calls RPC dynamically via `IRpcClientFactory`.
+  - `GET /nameko` - Calls a Python Nameko microservice.
+  - `GET /mixed` - Demonstrates calling methods with different protocols on the same service.
 
 ## How to Run
 

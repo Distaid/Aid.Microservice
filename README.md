@@ -70,12 +70,12 @@ app.Run();
 ```
 
 > 💡 **Registration Options:**
-> - **`services.AddAidMicroserviceGenerated()` (Recommended)** — zero reflection, NativeAOT ready, compile-time discovery.
-> - **`services.AddAidMicroservice(assembly)` (Legacy / Not Recommended)** — reflection-based assembly scanning, kept for backwards compatibility.
+> - **`services.AddAidMicroserviceGenerated()` (Recommended)** - zero reflection, NativeAOT ready, compile-time discovery.
+> - **`services.AddAidMicroservice(assembly)` (Legacy / Not Recommended)** - reflection-based assembly scanning, kept for backwards compatibility.
 
 ### Features
 
-- **Declarative API** — mark services and methods with `[Microservice]` and `[RpcCallable]` attributes:
+- **Declarative API** - mark services and methods with `[Microservice]` and `[RpcCallable]` attributes:
 
 ```csharp
 [Microservice]
@@ -86,7 +86,7 @@ public class SimpleService
 }
 ```
 
-- **Custom naming** — use aliases for cross-language compatibility:
+- **Custom naming** - use aliases for cross-language compatibility:
 
 ```csharp
 [Microservice("just_name_me")]
@@ -97,7 +97,7 @@ public class NamedService
 }
 ```
 
-- **DI Support** — services are registered as `Scoped`, allowing you to inject DbContext, ILogger, and other dependencies:
+- **DI Support** - services are registered as `Scoped`, allowing you to inject DbContext, ILogger, and other dependencies:
 
 ```csharp
 [Microservice]
@@ -111,7 +111,7 @@ public class DiService(ILogger<DiService> logger)
 }
 ```
 
-- **Proxy Support** — use `IRpcProxyFactory` for interservice communication on the server side:
+- **Proxy Support** - use `IRpcProxyFactory` for interservice communication on the server side:
 
 ```csharp
 [Microservice]
@@ -128,7 +128,7 @@ public class ProxyService(IRpcProxyFactory factory)
 }
 ```
 
-- **Async methods** — full async/await support:
+- **Async methods** - full async/await support:
 
 ```csharp
 [Microservice]
@@ -142,7 +142,7 @@ public class AsyncService
 }
 ```
 
-- **CQRS / Single-Queue Handlers** — declare query or command handlers in dedicated classes using `[MicroserviceQuery]`, giving each handler its own dedicated RabbitMQ queue for better isolation and scaling:
+- **CQRS / Single-Queue Handlers** - declare query or command handlers in dedicated classes using `[MicroserviceQuery]`, giving each handler its own dedicated RabbitMQ queue for better isolation and scaling:
 
 ```csharp
 public record GetProductRequest(int Id, string Category);
@@ -164,7 +164,7 @@ On the client side, call queries using dedicated methods:
 var product = await client.CallQuery<ProductDto>("get_product", new { Id = 42, Category = "Electronics" });
 ```
 
-- **Per-Service Serializers** — assign a custom serializer to an entire service:
+- **Per-Service Serializers** - assign a custom serializer to an entire service:
 
 ```csharp
 [Microservice("nameko_service", SerializerType = typeof(NamekoSerializer))]
@@ -175,7 +175,7 @@ public class NamekoService
 }
 ```
 
-- **Per-Method Serializers** — mix different serializers within a single service:
+- **Per-Method Serializers** - mix different serializers within a single service:
 
 ```csharp
 [Microservice("mixed_service")]
@@ -189,7 +189,7 @@ public class MixedService
 }
 ```
 
-- **Explicit Exchange Names** — control which exchange a service listens on:
+- **Explicit Exchange Names** - control which exchange a service listens on:
 
 ```csharp
 // Single exchange for all methods
@@ -227,7 +227,7 @@ IRpcProtocol                    IRequestSerializer
 | `DefaultJsonProtocol` | Topic         | `aid_rpc`     | `DefaultJsonSerializer` | .NET ↔ .NET services   |
 | `NamekoProtocol`      | Topic         | `nameko-rpc`  | `NamekoSerializer`      | .NET ↔ Python (Nameko) |
 
-> 📘 For a complete reference of all shared models, attributes, and interfaces — see the [Shared Documentation](docs/shared.README.md).
+> 📘 For a complete reference of all shared models, attributes, and interfaces - see the [Shared Documentation](docs/shared.README.md).
 
 #### Default Protocol
 
@@ -255,7 +255,7 @@ var result = await namekoClient.CallAsync<int>("add", new { a = 1, b = 2 });
 
 #### Per-Service and Per-Method Serializers
 
-You can mix different serializers within a single application — or even a single service.
+You can mix different serializers within a single application - or even a single service.
 
 ```csharp
 // Entire service uses NamekoSerializer on "nameko-rpc" exchange
@@ -365,7 +365,7 @@ builder.ConfigureServices((context, services) =>
 await builder.Build().RunAsync();
 ```
 
-> 📘 For a complete server reference — including multi-exchange setup, custom serializers, and architecture details — see the [Server Documentation](docs/server.README.md).
+> 📘 For a complete server reference - including multi-exchange setup, custom serializers, and architecture details - see the [Server Documentation](docs/server.README.md).
 
 You can find the full [Server Example](examples/Aid.Microservice.Server.Example).
 
@@ -398,14 +398,14 @@ var defaultClient = factory.CreateClient("simple");
 // Nameko protocol (nameko-rpc)
 var namekoClient = factory.CreateClient("python_service", new NamekoProtocol());
 
-// Mixed service — same service, different protocols
+// Mixed service - same service, different protocols
 var mixedNameko = factory.CreateClient("mixed", new NamekoProtocol());   // → nameko_add
 var mixedDefault = factory.CreateClient("mixed");                        // → default_add
 ```
 
 You can find the full [Client Example](examples/Aid.Microservice.Client.Example).
 
-> 📘 For a complete console client reference — including API details, error handling, and configuration — see the [Client Documentation](docs/client.README.md).
+> 📘 For a complete console client reference - including API details, error handling, and configuration - see the [Client Documentation](docs/client.README.md).
 
 ### ASP.NET Core
 
@@ -472,4 +472,4 @@ app.MapGet("/nameko", async (IRpcClientFactory factory) =>
 
 You can find the full [Client ASP.NET Core Example](examples/Aid.Microservice.Client.AspNetCore.Example).
 
-> 📘 For a complete ASP.NET Core client reference — including DI registration, controller usage, and error handling — see the [Client ASP.NET Core Documentation](docs/client.aspnetcore.README.md).
+> 📘 For a complete ASP.NET Core client reference - including DI registration, controller usage, and error handling - see the [Client ASP.NET Core Documentation](docs/client.aspnetcore.README.md).

@@ -139,7 +139,7 @@ var namekoClient = factory.CreateClient("python_service", new NamekoProtocol());
 var result = await namekoClient.CallAsync<int>("add", new { a = 1, b = 2 });
 ```
 
-### Mixed Service — Different Protocols per Call
+### Mixed Service - Different Protocols per Call
 
 ```csharp
 app.MapGet("/mixed", async (IRpcClientFactory factory) =>
@@ -156,7 +156,7 @@ app.MapGet("/mixed", async (IRpcClientFactory factory) =>
 });
 ```
 
-Clients are cached by `(serviceName, protocol, exchangeName)` — repeated calls with the same parameters reuse the same instance.
+Clients are cached by `(serviceName, protocol, exchangeName)` - repeated calls with the same parameters reuse the same instance.
 
 ## Error Handling
 
@@ -171,7 +171,7 @@ app.MapGet("/call", async (IRpcClientFactory factory) =>
     }
     catch (RpcCallException ex)
     {
-        // Server-side error — contains error message, type, and CorrelationId
+        // Server-side error - contains error message, type, and CorrelationId
         return Results.BadRequest(new { error = ex.Message });
     }
     catch (TimeoutException)
@@ -200,13 +200,13 @@ AddAidMicroserviceClient()
 
 ## Passing Arguments
 
-### Named Arguments (kwargs) — Default
+### Named Arguments (kwargs) - Default
 
 ```csharp
 await client.CallAsync("add", new { a = 1, b = 2 });
 ```
 
-### Positional Arguments (args) — Nameko
+### Positional Arguments (args) - Nameko
 
 ```csharp
 await client.CallAsync("sum", new RpcNamekoRequest(10, 20));

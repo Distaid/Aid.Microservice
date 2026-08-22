@@ -62,8 +62,8 @@ Defines the messaging protocol (exchange type, exchange name, serializer).
 | `DefaultSerializer`   | `IRequestSerializer` used for message body   |
 
 Built-in implementations:
-- `DefaultJsonProtocol` — .NET ↔ .NET (Topic, `aid_rpc`)
-- `NamekoProtocol` — .NET ↔ Python Nameko (Topic, `nameko-rpc`)
+- `DefaultJsonProtocol` - .NET ↔ .NET (Topic, `aid_rpc`)
+- `NamekoProtocol` - .NET ↔ Python Nameko (Topic, `nameko-rpc`)
 
 ### `IRequestSerializer`
 
@@ -79,8 +79,8 @@ Handles serialization/deserialization of RPC message bodies.
 | `ParseResponse()`  | Deserialize response body                   |
 
 Built-in implementations:
-- `DefaultJsonSerializer` — `{"Method": "...", "Parameters": {...}}`
-- `NamekoSerializer` — `{"args": [...], "kwargs": {...}, "context_data": {...}}`
+- `DefaultJsonSerializer` - `{"Method": "...", "Parameters": {...}}`
+- `NamekoSerializer` - `{"args": [...], "kwargs": {...}, "context_data": {...}}`
 
 ## Models
 

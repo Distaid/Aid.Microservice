@@ -78,10 +78,10 @@ services.AddAidMicroserviceGeneratedClients();
 
 | Parameter           | Required | Default | Description                                              |
 |---------------------|----------|---------|----------------------------------------------------------|
-| `method`            | Yes      | —       | Method name (as defined by `[RpcCallable]` or its alias) |
+| `method`            | Yes      | -       | Method name (as defined by `[RpcCallable]` or its alias) |
 | `parameters`        | No       | null    | Anonymous object with named arguments                    |
 | `timeout`           | No       | 30s     | Call timeout                                             |
-| `cancellationToken` | No       | —       | Cancellation token                                       |
+| `cancellationToken` | No       | -       | Cancellation token                                       |
 
 ## Protocols
 
@@ -101,7 +101,7 @@ var namekoClient = factory.CreateClient("python_service", new NamekoProtocol());
 // Uses NamekoSerializer on "nameko-rpc" exchange
 ```
 
-### Mixed Service — Different Protocols
+### Mixed Service - Different Protocols
 
 ```csharp
 // Same service, different methods on different exchanges
@@ -112,20 +112,20 @@ var defaultClient = factory.CreateClient("mixed_service");
 var defaultResult = await defaultClient.CallAsync<int>("default_add", new { a = 100, b = 200 });
 ```
 
-Clients are cached by `(serviceName, protocol, exchangeName)` — repeated calls with the same parameters reuse the same instance.
+Clients are cached by `(serviceName, protocol, exchangeName)` - repeated calls with the same parameters reuse the same instance.
 
 ## Passing Arguments
 
 ### Named Arguments (kwargs)
 
-Default — pass an anonymous object:
+Default - pass an anonymous object:
 
 ```csharp
 await client.CallAsync("add", new { a = 1, b = 2 });
 // → {"Method": "add", "Parameters": {"a": 1, "b": 2}}
 ```
 
-### Positional Arguments (args) — Nameko
+### Positional Arguments (args) - Nameko
 
 Use `RpcNamekoRequest` for Nameko-compatible services:
 
@@ -151,7 +151,7 @@ try
 }
 catch (RpcCallException ex)
 {
-    // Server-side error — contains error message, type, and CorrelationId
+    // Server-side error - contains error message, type, and CorrelationId
     Console.WriteLine($"RPC Error: {ex.Message}");
 }
 catch (TimeoutException)
