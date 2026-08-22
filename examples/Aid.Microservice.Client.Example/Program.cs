@@ -2,7 +2,7 @@ using Aid.Microservice.Client;
 using Aid.Microservice.Shared.Models;
 using Aid.Microservice.Shared.Protocols;
 
-await using var factory = new RpcClientFactory("192.168.100.100", 5672, "distaid", "91375");
+await using var factory = new RpcClientFactory("localhost", 5672, "guest", "guest");
 
 // --- Default protocol (DefaultJsonProtocol on "aid_rpc" exchange) ---
 await using var simpleClient = factory.CreateClient("simple");
