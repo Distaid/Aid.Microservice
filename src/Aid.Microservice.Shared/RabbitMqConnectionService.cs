@@ -14,7 +14,7 @@ public class RabbitMqConnectionService : IRabbitMqConnectionService
     private readonly ConnectionFactory _connectionFactory;
     private readonly ILogger<RabbitMqConnectionService> _logger;
     private readonly SemaphoreSlim _connectionLock = new(1, 1);
-    
+
     private IConnection? _connection;
     private bool _disposed;
     private readonly int _retryCount;
@@ -163,7 +163,7 @@ public class RabbitMqConnectionService : IRabbitMqConnectionService
 
         _disposed = true;
         _logger.LogInformation("Disposing RabbitMQ Connection Service...");
-        
+
         await _connectionLock.WaitAsync();
         try
         {
@@ -174,7 +174,7 @@ public class RabbitMqConnectionService : IRabbitMqConnectionService
             _connectionLock.Release();
             _connectionLock.Dispose();
         }
-        
+
         GC.SuppressFinalize(this);
     }
 

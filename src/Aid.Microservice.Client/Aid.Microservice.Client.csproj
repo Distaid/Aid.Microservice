@@ -1,9 +1,10 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <IsAotCompatible>true</IsAotCompatible>
 
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageId>Aid.Microservice.Client</PackageId>
@@ -18,6 +19,11 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Aid.Microservice.Shared\Aid.Microservice.Shared.csproj" />
+    <ProjectReference Include="..\Aid.Microservice.SourceGenerators\Aid.Microservice.SourceGenerators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\Aid.Microservice.SourceGenerators\bin\$(Configuration)\netstandard2.0\Aid.Microservice.SourceGenerators.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
   </ItemGroup>
 
 </Project>

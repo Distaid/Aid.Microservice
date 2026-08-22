@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="4.0.0">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="FluentAssertions" Version="8.10.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Aid.Microservice.Client\Aid.Microservice.Client.csproj" />
+    <ProjectReference Include="..\..\src\Aid.Microservice.Client.AspNetCore\Aid.Microservice.Client.AspNetCore.csproj" />
+    <ProjectReference Include="..\..\src\Aid.Microservice.Server\Aid.Microservice.Server.csproj" />
+    <ProjectReference Include="..\..\src\Aid.Microservice.Shared\Aid.Microservice.Shared.csproj" />
+    <ProjectReference Include="..\..\src\Aid.Microservice.SourceGenerators\Aid.Microservice.SourceGenerators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+</Project>

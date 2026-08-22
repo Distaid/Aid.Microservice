@@ -6,7 +6,7 @@ public record RpcError
 {
     public string Message { get; init; }
     public string? ErrorType { get; init; }
-    
+
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? StackTrace { get; init; }
 
@@ -17,7 +17,7 @@ public record RpcError
         ErrorType = errorType;
         StackTrace = stackTrace;
     }
-    
+
     public RpcError(Exception ex, bool includeStackTrace = false)
     {
         Message = ex.Message;

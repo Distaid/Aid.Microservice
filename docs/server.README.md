@@ -5,14 +5,15 @@ A .NET library for building RPC microservices over RabbitMQ with support for mul
 ## Quick Start
 
 ```csharp
+using Aid.Microservice.Generated;
 using Aid.Microservice.Server;
-using Aid.Microservice.Server.Extensions;
 
 var builder = MicroserviceHostBuilder.CreateBuilder(args);
 
 builder.ConfigureServices((_, services) =>
 {
-    services.AddAidMicroservice(typeof(Program).Assembly);
+    // NativeAOT-ready, zero-reflection source-generated endpoints
+    services.AddAidMicroserviceGenerated();
 });
 
 var app = builder.Build();
@@ -32,6 +33,32 @@ Add `appsettings.json` with RabbitMQ connection:
     }
 }
 ```
+
+## Registration Options
+
+### 1. Source Generated (Recommended)
+
+```csharp
+using Aid.Microservice.Generated;
+
+services.AddAidMicroserviceGenerated();
+```
+
+- **Zero runtime reflection:** Endpoints and typed invokers are generated at compile time by Roslyn Source Generators.
+- **NativeAOT & Trimming ready:** 100% compatible with ahead-of-time compilation.
+- **Maximum performance:** Direct delegate dispatch without boxing or runtime type inspection.
+
+### 2. Assembly Scanning (Legacy / Not Recommended)
+
+```csharp
+using Aid.Microservice.Server.Extensions;
+
+#pragma warning disable CS0618 // Type or member is obsolete
+services.AddAidMicroservice(typeof(Program).Assembly);
+#pragma warning restore CS0618
+```
+
+> ⚠️ **Not Recommended:** Uses runtime reflection to scan assemblies. It is incompatible with NativeAOT and will produce trimming warnings. Kept for backwards compatibility and dynamic plugin loading (`Assembly.Load`).
 
 ## Features
 

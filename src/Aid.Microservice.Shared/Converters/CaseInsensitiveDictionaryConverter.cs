@@ -11,7 +11,7 @@ public class CaseInsensitiveDictionaryConverter : JsonConverter<Dictionary<strin
         {
             throw new JsonException();
         }
-        
+
         var dictionary = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
         while (reader.Read())
         {
@@ -25,18 +25,22 @@ public class CaseInsensitiveDictionaryConverter : JsonConverter<Dictionary<strin
                 throw new JsonException();
             }
             var propertyName = reader.GetString()!;
-            
+
             reader.Read();
-            var value = JsonSerializer.Deserialize<JsonElement>(ref reader, options);
-            
-            dictionary[propertyName] = value;
+            using var doc = JsonDocument.ParseValue(ref reader);
+            dictionary[propertyName] = doc.RootElement.Clone();
         }
         return dictionary;
     }
 
     public override void Write(Utf8JsonWriter writer, Dictionary<string, JsonElement> value, JsonSerializerOptions options)
     {
-        // Default serialization — no custom transformation needed
-        JsonSerializer.Serialize(writer, value, options);
+        writer.WriteStartObject();
+        foreach (var kvp in value)
+        {
+            writer.WritePropertyName(kvp.Key);
+            kvp.Value.WriteTo(writer);
+        }
+        writer.WriteEndObject();
     }
 }

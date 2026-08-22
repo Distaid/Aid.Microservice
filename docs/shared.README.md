@@ -30,13 +30,23 @@ Marks a method as an RPC endpoint.
 
 ### `[MicroserviceQuery]`
 
-Marks a class as a single-endpoint Microservice Query or Command handler (CQRS style).
+Marks a class as a single-endpoint Microservice Query or Command handler (CQRS style), or a client interface method as a query call.
 
 ```csharp
 [MicroserviceQuery]                                             // query name: class name minus suffixes (e.g. "Query", "QueryHandler", "Command")
 [MicroserviceQuery("custom_query")]                             // explicit query name
 [MicroserviceQuery(SerializerType = typeof(NamekoSerializer))]  // custom serializer
 [MicroserviceQuery(ExchangeName = "my_rpc")]                    // explicit exchange
+```
+
+### `[MicroserviceClient]`
+
+Marks an interface as a typed RPC client for compile-time Source Generation.
+
+```csharp
+[MicroserviceClient("target_service")]
+[MicroserviceClient("target_service", ExchangeName = "custom_exchange")]
+public interface IMyServiceClient { ... }
 ```
 
 ## Protocols

@@ -38,17 +38,43 @@ IRpcClient CreateClient(string serviceName, IRpcProtocol protocol, string exchan
 // Call with return type
 Task<T?> CallAsync<T>(string method, object? parameters = null, TimeSpan? timeout = null, CancellationToken ct = default);
 
+// Call with return type and JsonTypeInfo (100% NativeAOT safe)
+Task<T?> CallAsync<T>(string method, object? parameters, JsonTypeInfo<T> jsonTypeInfo, TimeSpan? timeout = null, CancellationToken ct = default);
+
 // Call without return type (fire-and-forget style)
 Task CallAsync(string method, object? parameters = null, TimeSpan? timeout = null, CancellationToken ct = default);
 
 // Call standalone query/command with return type (prefixes queryName with "query." automatically)
 Task<TResponse?> CallQueryAsync<TResponse>(string queryName, object? parameters = null, TimeSpan? timeout = null, CancellationToken ct = default);
-Task<TResponse?> CallQuery<TResponse>(string queryName, object? parameters = null, TimeSpan? timeout = null, CancellationToken ct = default);
+Task<TResponse?> CallQueryAsync<TResponse>(string queryName, object? parameters, JsonTypeInfo<TResponse> jsonTypeInfo, TimeSpan? timeout = null, CancellationToken ct = default);
 
-// Call standalone query/command without return type (prefixes queryName with "query." automatically)
+// Call standalone query/command without return type
 Task CallQueryAsync(string queryName, object? parameters = null, TimeSpan? timeout = null, CancellationToken ct = default);
-Task CallQuery(string queryName, object? parameters = null, TimeSpan? timeout = null, CancellationToken ct = default);
 ```
+
+### Strongly-Typed Clients (Source Generated)
+
+Instead of manual `CallAsync` invocations, declare an interface:
+
+```csharp
+[MicroserviceClient("calc")]
+public interface ICalculatorClient
+{
+    [RpcCallable("add")]
+    Task<int> Add(int a, int b, CancellationToken ct = default);
+
+    [RpcCallable("async_square")]
+    Task<int> AsyncSquare(int value, CancellationToken ct = default);
+}
+```
+
+The Source Generator automatically generates the client implementation. When using Dependency Injection, register them with:
+
+```csharp
+services.AddAidMicroserviceGeneratedClients();
+```
+
+> 📘 For ASP.NET Core integration, see the [Client ASP.NET Core Documentation](client.aspnetcore.README.md).
 
 | Parameter           | Required | Default | Description                                              |
 |---------------------|----------|---------|----------------------------------------------------------|

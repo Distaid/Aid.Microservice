@@ -53,20 +53,25 @@ public class SimpleService
 And run the server in `Program.cs`:
 
 ```csharp
+using Aid.Microservice.Generated;
 using Aid.Microservice.Server;
-using Aid.Microservice.Server.Extensions;
 
 var builder = MicroserviceHostBuilder.CreateBuilder(args);
 
 builder.ConfigureServices((_, services) =>
 {
-    services.AddAidMicroservice(typeof(Program).Assembly);
+    // Compile-time source-generated endpoints (NativeAOT ready, zero reflection)
+    services.AddAidMicroserviceGenerated();
 });
 
 var app = builder.Build();
 
 app.Run();
 ```
+
+> 💡 **Registration Options:**
+> - **`services.AddAidMicroserviceGenerated()` (Recommended)** — zero reflection, NativeAOT ready, compile-time discovery.
+> - **`services.AddAidMicroservice(assembly)` (Legacy / Not Recommended)** — reflection-based assembly scanning, kept for backwards compatibility.
 
 ### Features
 
@@ -342,6 +347,7 @@ RabbitMQ connection is configured via `appsettings.json`:
 ### Protocol Registration
 
 ```csharp
+using Aid.Microservice.Generated;
 using Aid.Microservice.Server.Extensions;
 using Aid.Microservice.Shared.Protocols;
 
@@ -349,11 +355,11 @@ var builder = MicroserviceHostBuilder.CreateBuilder(args);
 
 builder.ConfigureServices((context, services) =>
 {
-    // Optional: replace the default protocol (works before or after AddAidMicroservice)
+    // Optional: replace the default protocol
     services.AddAidMicroserviceProtocol<NamekoProtocol>();
 
-    // Register services from the assembly
-    services.AddAidMicroservice(typeof(Program).Assembly);
+    // Register generated endpoints (recommended)
+    services.AddAidMicroserviceGenerated();
 });
 
 await builder.Build().RunAsync();
@@ -422,9 +428,32 @@ builder.Services.AddAidMicroserviceClient(config =>
 });
 ```
 
-#### Usage
+#### Strongly-Typed Clients (Source Generated)
 
-Inject `IRpcClientFactory` into your controllers or minimal API handlers:
+Declare an interface marked with `[MicroserviceClient]`:
+
+```csharp
+[MicroserviceClient("calc")]
+public interface ICalculatorClient
+{
+    [RpcCallable("add")]
+    Task<int> Add(int a, int b, CancellationToken ct = default);
+}
+```
+
+Register generated clients and inject the interface directly into endpoints or controllers:
+
+```csharp
+builder.Services.AddAidMicroserviceClient();
+builder.Services.AddAidMicroserviceGeneratedClients();
+
+// Inject and call:
+app.MapGet("/add", async (ICalculatorClient client) => await client.Add(10, 20));
+```
+
+#### Dynamic Usage via `IRpcClientFactory`
+
+You can also inject `IRpcClientFactory` directly into your controllers or minimal API handlers:
 
 ```csharp
 app.MapGet("/", async (IRpcClientFactory factory) =>

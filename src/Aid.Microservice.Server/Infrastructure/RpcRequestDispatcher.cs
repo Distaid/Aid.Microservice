@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Text.Json;
+using Aid.Microservice.Server.Contracts;
 using Aid.Microservice.Shared.Models;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -18,11 +19,9 @@ public class RpcRequestDispatcher(
         PropertyNamingPolicy = null
     };
 
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode", Justification = "Fallback for non-generated legacy services")]
     public async Task<RpcResponse> DispatchAsync(string serviceName, string methodName, Dictionary<string, JsonElement>? parameters)
     {
-        object? callResult = null;
-        RpcError? callError = null;
-
         try
         {
             if (!registry.TryGetMethod(serviceName, methodName, out var endpointInfo) || endpointInfo == null)
@@ -30,42 +29,62 @@ public class RpcRequestDispatcher(
                 throw new MissingMethodException($"Method '{methodName}' not found in service '{serviceName}'");
             }
 
-            var paramStr = parameters != null
-                ? JsonSerializer.Serialize(parameters, _jsonOptions)
-                : "none";
-
-            logger.LogInformation("Invoking {Service}.{Method} with parameters: {Parameters}", serviceName, methodName, paramStr);
-
-            using var scope = serviceProvider.CreateScope();
-            var serviceInstance = scope.ServiceProvider.GetService(endpointInfo.ServiceType);
-            
-            if (serviceInstance == null)
+            if (logger.IsEnabled(LogLevel.Information))
             {
-                throw new InvalidOperationException($"Could not resolve service type '{endpointInfo.ServiceType.Name}'");
+                var paramStr = parameters is { Count: > 0 }
+                    ? JsonSerializer.Serialize(parameters, Shared.Serialization.RpcSharedJsonContext.Default.DictionaryStringJsonElement)
+                    : "none";
+                logger.LogInformation("Invoking {Service}.{Method} with parameters: {Parameters}", serviceName, methodName, paramStr);
             }
-            
-            var arguments = PrepareArguments(endpointInfo.Parameters, parameters);
-            
-            callResult = await endpointInfo.FastInvoke(serviceInstance, arguments);
+
+            if (endpointInfo.Invoker != null)
+            {
+                return await endpointInfo.Invoker(serviceProvider, parameters, CancellationToken.None);
+            }
+
+            return await DispatchLegacyAsync(endpointInfo, parameters);
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Error executing RPC method {Service}.{Method}", serviceName, methodName);
-            
-            var actualException = ex is TargetInvocationException && ex.InnerException != null 
-                ? ex.InnerException 
+
+            var actualException = ex is TargetInvocationException && ex.InnerException != null
+                ? ex.InnerException
                 : ex;
 
-            callError = new RpcError(actualException, includeStackTrace: logger.IsEnabled(LogLevel.Debug));
+            var callError = new RpcError(actualException, includeStackTrace: logger.IsEnabled(LogLevel.Debug));
+            return new RpcResponse
+            {
+                Result = null,
+                Error = callError
+            };
         }
-        
-        return new RpcResponse 
-        { 
-            Result = callResult, 
-            Error = callError 
+    }
+
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode", Justification = "Used only as a fallback for legacy non-generated services")]
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "Used only as a fallback for legacy non-generated services")]
+    private async Task<RpcResponse> DispatchLegacyAsync(RpcMethodInfo endpointInfo, Dictionary<string, JsonElement>? parameters)
+    {
+        using var scope = serviceProvider.CreateScope();
+        var serviceInstance = scope.ServiceProvider.GetService(endpointInfo.ServiceType!);
+
+        if (serviceInstance == null)
+        {
+            throw new InvalidOperationException($"Could not resolve service type '{endpointInfo.ServiceType?.Name}'");
+        }
+
+        var arguments = PrepareArguments(endpointInfo.Parameters!, parameters);
+        var callResult = await endpointInfo.FastInvoke!(serviceInstance, arguments);
+
+        return new RpcResponse
+        {
+            Result = callResult,
+            Error = null
         };
     }
 
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode", Justification = "Legacy argument binding fallback")]
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "Legacy argument binding fallback")]
     private object?[] PrepareArguments(ParameterInfo[] methodParams, Dictionary<string, JsonElement>? inputParams)
     {
         if (methodParams.Length == 0)
@@ -114,7 +133,7 @@ public class RpcRequestDispatcher(
         for (var i = 0; i < methodParams.Length; i++)
         {
             var paramInfo = methodParams[i];
-            
+
             if (paramInfo.ParameterType == typeof(CancellationToken))
             {
                 resArgs[i] = CancellationToken.None;
@@ -123,12 +142,12 @@ public class RpcRequestDispatcher(
 
             var paramName = paramInfo.Name!;
             JsonElement? jsonValue = null;
-            
+
             if (inputParams != null && inputParams.TryGetValue(paramName, out var paramValue))
             {
                 jsonValue = paramValue;
             }
-            
+
             if (jsonValue.HasValue)
             {
                 if (jsonValue.Value.ValueKind == JsonValueKind.Null)
@@ -163,7 +182,7 @@ public class RpcRequestDispatcher(
                 }
             }
         }
-        
+
         return resArgs;
     }
 
@@ -173,7 +192,7 @@ public class RpcRequestDispatcher(
         {
             return false;
         }
-        
+
         var underlying = Nullable.GetUnderlyingType(type);
         if (underlying != null)
         {
@@ -189,7 +208,7 @@ public class RpcRequestDispatcher(
         {
             return true;
         }
-        
+
         return Nullable.GetUnderlyingType(param.ParameterType) != null;
     }
 }

@@ -8,11 +8,15 @@ ASP.NET Core integration for the Aid.Microservice RPC client. Provides DI-based 
 
 ```csharp
 using Aid.Microservice.Client.AspNetCore;
+using Aid.Microservice.Generated;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Loads "RabbitMqConfiguration" from appsettings.json
 builder.Services.AddAidMicroserviceClient();
+
+// Registers source-generated typed client proxies (optional)
+builder.Services.AddAidMicroserviceGeneratedClients();
 
 var app = builder.Build();
 ```
@@ -20,11 +24,15 @@ var app = builder.Build();
 ### 2. Use in Endpoints
 
 ```csharp
+// Via IRpcClientFactory
 app.MapGet("/", async (IRpcClientFactory factory) =>
 {
     var client = factory.CreateClient("simple");
     return await client.CallAsync<int>("multiple", new { a = 5, b = 10 });
 });
+
+// Or via injected strongly-typed client:
+app.MapGet("/calc", async (ICalculatorClient client) => await client.Add(5, 10));
 ```
 
 ### 3. Use in Controllers
@@ -32,17 +40,38 @@ app.MapGet("/", async (IRpcClientFactory factory) =>
 ```csharp
 [ApiController]
 [Route("api/[controller]")]
-public class RpcController(IRpcClientFactory factory) : ControllerBase
+public class RpcController(ISimpleClient client) : ControllerBase
 {
     [HttpGet("multiply")]
     public async Task<IActionResult> Multiply(int a, int b)
     {
-        var client = factory.CreateClient("simple");
-        var result = await client.CallAsync<int>("multiple", new { a, b });
+        var result = await client.Multiple(a, b);
         return Ok(result);
     }
 }
 ```
+
+## Strongly-Typed Clients (Source Generated)
+
+Declare an interface marked with `[MicroserviceClient]`:
+
+```csharp
+[MicroserviceClient("simple")]
+public interface ISimpleClient
+{
+    [RpcCallable("multiple")]
+    Task<int> Multiple(int a, int b, CancellationToken ct = default);
+}
+```
+
+Register both the base client infrastructure and generated proxies:
+
+```csharp
+builder.Services.AddAidMicroserviceClient();
+builder.Services.AddAidMicroserviceGeneratedClients();
+```
+
+The Source Generator automatically emits a compile-time implementation and registers `ISimpleClient` in DI, allowing you to inject it anywhere without reflection.
 
 ## Configuration
 

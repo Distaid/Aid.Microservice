@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization.Metadata;
+
 namespace Aid.Microservice.Client.Infrastructure;
 
 /// <summary>
@@ -40,6 +42,17 @@ public interface IRpcClient : IAsyncDisposable
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Calls a remote method and deserializes the result using the specified <see cref="JsonTypeInfo{TResponse}"/>.
+    /// 100% NativeAOT and Trim safe.
+    /// </summary>
+    Task<TResponse?> CallAsync<TResponse>(
+        string method,
+        object? parameters,
+        JsonTypeInfo<TResponse> jsonTypeInfo,
+        TimeSpan? timeout = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Calls a remote query without expecting a return value.
     /// Automatically prefixes the query name with "query.".
     /// </summary>
@@ -60,6 +73,17 @@ public interface IRpcClient : IAsyncDisposable
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Calls a remote query and deserializes the result using the specified <see cref="JsonTypeInfo{TResponse}"/>.
+    /// 100% NativeAOT and Trim safe.
+    /// </summary>
+    Task<TResponse?> CallQuery<TResponse>(
+        string queryName,
+        object? parameters,
+        JsonTypeInfo<TResponse> jsonTypeInfo,
+        TimeSpan? timeout = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Calls a remote query without expecting a return value.
     /// Automatically prefixes the query name with "query.".
     /// </summary>
@@ -76,6 +100,17 @@ public interface IRpcClient : IAsyncDisposable
     Task<TResponse?> CallQueryAsync<TResponse>(
         string queryName,
         object? parameters = null,
+        TimeSpan? timeout = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Calls a remote query and deserializes the result using the specified <see cref="JsonTypeInfo{TResponse}"/>.
+    /// 100% NativeAOT and Trim safe.
+    /// </summary>
+    Task<TResponse?> CallQueryAsync<TResponse>(
+        string queryName,
+        object? parameters,
+        JsonTypeInfo<TResponse> jsonTypeInfo,
         TimeSpan? timeout = null,
         CancellationToken cancellationToken = default);
 }

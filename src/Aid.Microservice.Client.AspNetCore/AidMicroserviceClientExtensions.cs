@@ -19,6 +19,8 @@ public static class AidMicroserviceClientExtensions
         /// <remarks>
         /// Needs RabbitMqConfiguration section in appsettings.json that represent <see cref="RabbitMqConfiguration" />.
         /// </remarks>
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode", Justification = "RabbitMqConfiguration is fully known and preserved")]
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "RabbitMqConfiguration is fully known and preserved")]
         public IServiceCollection AddAidMicroserviceClient()
         {
             services.AddOptions<RabbitMqConfiguration>()
@@ -30,7 +32,7 @@ public static class AidMicroserviceClientExtensions
 
             return services;
         }
-        
+
         /// <summary>
         /// Adds RpcClientFactory to the container with RabbitMq configuration.
         /// </summary>
@@ -48,12 +50,14 @@ public static class AidMicroserviceClientExtensions
                 options.RecoveryInterval = configuration.RecoveryInterval;
             });
         }
-        
+
         /// <summary>
         /// Adds RpcClientFactory to the container with RabbitMq configuration.
         /// </summary>
         /// <param name="configureOptions"><see cref="RabbitMqConfiguration" /> action to initialize connection to RabbitMq</param>
         /// <returns>The same instance of the <see cref="T:Microsoft.Extensions.DependencyInjection.IServiceCollection" /> for chaining</returns>
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode", Justification = "RabbitMqConfiguration is fully known and preserved")]
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "RabbitMqConfiguration is fully known and preserved")]
         public IServiceCollection AddAidMicroserviceClient(Action<RabbitMqConfiguration> configureOptions)
         {
             services.AddOptions<RabbitMqConfiguration>()
@@ -62,11 +66,11 @@ public static class AidMicroserviceClientExtensions
                 .ValidateOnStart();
 
             RegisterServices(services);
-        
+
             return services;
         }
     }
-        
+
     private static void RegisterServices(IServiceCollection services)
     {
         services.TryAddSingleton<IRpcProtocol, DefaultJsonProtocol>();

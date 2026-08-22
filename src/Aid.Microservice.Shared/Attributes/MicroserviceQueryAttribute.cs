@@ -1,11 +1,10 @@
-using System;
-
 namespace Aid.Microservice.Shared.Attributes;
 
 /// <summary>
-/// Attribute that marks a class as a single-endpoint Microservice Query/Command handler.
+/// Attribute that marks a class as a single-endpoint Microservice Query/Command handler,
+/// or a method on a client interface as a Query invocation.
 /// </summary>
-[AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, Inherited = false, AllowMultiple = false)]
 public class MicroserviceQueryAttribute : Attribute
 {
     private readonly string? _alias;

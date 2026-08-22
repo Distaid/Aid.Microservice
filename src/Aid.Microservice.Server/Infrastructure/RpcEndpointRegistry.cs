@@ -9,7 +9,6 @@ using Microsoft.Extensions.Logging;
 
 namespace Aid.Microservice.Server.Infrastructure;
 
-[RequiresUnreferencedCode("This implementation uses Reflection and is not safe for NativeAOT.")]
 public class RpcEndpointRegistry(
     ILogger<RpcEndpointRegistry> logger,
     ISerializerRegistry serializerRegistry,
@@ -19,6 +18,8 @@ public class RpcEndpointRegistry(
     private readonly ConcurrentDictionary<string, Dictionary<string, RpcMethodInfo>> _endpoints = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, HashSet<string>> _serviceExchanges = new(StringComparer.OrdinalIgnoreCase);
 
+    [Obsolete("ScanAssemblies is reflection-based and not recommended. Use source-generated endpoints instead.")]
+    [RequiresUnreferencedCode("ScanAssemblies uses reflection and is not safe for NativeAOT. Use source-generated endpoints instead.")]
     public void ScanAssemblies(Assembly assembly)
     {
         logger.LogDebug("── RPC Service Discovery ──────────────────────────");
@@ -87,7 +88,7 @@ public class RpcEndpointRegistry(
                         .Select(kvp =>
                         {
                             var alias = kvp.Key;
-                            var csharpName = kvp.Value.Method.Name;
+                            var csharpName = kvp.Value.Method?.Name ?? kvp.Key;
                             var serializerLabel = kvp.Value.SerializerType != null
                                 ? $" [{kvp.Value.SerializerType.Name.Replace("Serializer", "")}]"
                                 : "";
@@ -129,9 +130,9 @@ public class RpcEndpointRegistry(
                 continue;
             }
 
-            var isAsync = typeof(Task).IsAssignableFrom(method.ReturnType) || 
-                          (method.ReturnType.IsGenericType && 
-                           (method.ReturnType.GetGenericTypeDefinition() == typeof(ValueTask<>) || 
+            var isAsync = typeof(Task).IsAssignableFrom(method.ReturnType) ||
+                          (method.ReturnType.IsGenericType &&
+                           (method.ReturnType.GetGenericTypeDefinition() == typeof(ValueTask<>) ||
                             method.ReturnType == typeof(ValueTask)));
 
             if (isAsync && method.Name.Equals("Handle", StringComparison.Ordinal))
@@ -213,13 +214,44 @@ public class RpcEndpointRegistry(
 
         return exchanges;
     }
-    
+
+    public void RegisterEndpoint(
+        string serviceName,
+        string methodName,
+        string? exchangeName,
+        Type? serializerType,
+        RpcMethodInvokerDelegate invoker)
+    {
+        var methodInfo = new RpcMethodInfo(serializerType, invoker);
+        var methods = _endpoints.GetOrAdd(serviceName, _ => new Dictionary<string, RpcMethodInfo>(StringComparer.OrdinalIgnoreCase));
+        lock (methods)
+        {
+            methods[methodName] = methodInfo;
+        }
+
+        var resolvedExchange = exchangeName;
+        if (string.IsNullOrWhiteSpace(resolvedExchange) && serializerType != null)
+        {
+            resolvedExchange = serializerRegistry.GetSerializer(serializerType)?.ExchangeName;
+        }
+        if (string.IsNullOrWhiteSpace(resolvedExchange))
+        {
+            resolvedExchange = protocol.DefaultSerializer.ExchangeName ?? "aid_rpc";
+        }
+
+        var exchanges = _serviceExchanges.GetOrAdd(serviceName, _ => new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+        lock (exchanges)
+        {
+            exchanges.Add(resolvedExchange);
+        }
+    }
+
     public bool TryGetMethod(string serviceName, string methodName, out RpcMethodInfo? endpointInfo)
     {
         endpointInfo = null;
         return _endpoints.TryGetValue(serviceName, out var methods) && methods.TryGetValue(methodName, out endpointInfo);
     }
-    
+
     public IEnumerable<(string ServiceName, string ExchangeName)> GetRegisteredServiceEndpoints()
     {
         foreach (var (serviceName, exchanges) in _serviceExchanges)
@@ -273,7 +305,7 @@ public class RpcEndpointRegistry(
 
         return exchanges;
     }
-    
+
     private static Func<object, object?[], Task<object?>> CreateMethodDelegate(Type serviceType, MethodInfo method)
     {
         var instanceParam = Expression.Parameter(typeof(object), "instance");
@@ -299,12 +331,12 @@ public class RpcEndpointRegistry(
         {
             // void: return Task.FromResult<object?>(null)
             var nullTask = Expression.Call(
-                typeof(Task), 
-                nameof(Task.FromResult), 
-                [typeof(object)], 
+                typeof(Task),
+                nameof(Task.FromResult),
+                [typeof(object)],
                 Expression.Constant(null)
             );
-            
+
             resultExpression = Expression.Block(call, nullTask);
         }
         else if (method.ReturnType == typeof(Task))
@@ -372,19 +404,19 @@ public class RpcEndpointRegistry(
 
         return lambda.Compile();
     }
-    
+
     private static Task<object?> WrapVoidTaskAsync(Task task)
     {
         if (task.Status == TaskStatus.RanToCompletion)
         {
             return Task.FromResult<object?>(null);
         }
-        
+
         return task.ContinueWith(
-            t => 
+            t =>
             {
                 t.GetAwaiter().GetResult();
-                return (object?)null; 
+                return (object?)null;
             },
             CancellationToken.None,
             TaskContinuationOptions.ExecuteSynchronously,

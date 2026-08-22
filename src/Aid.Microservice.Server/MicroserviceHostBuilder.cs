@@ -62,7 +62,7 @@ public class MicroserviceHostBuilder : IMicroserviceHostBuilder
     public IMicroserviceHostBuilder ConfigureServices(Action<HostBuilderContext, IServiceCollection> configureDelegate)
     {
         _hostBuilder.ConfigureServices(configureDelegate);
-        
+
         return this;
     }
 
@@ -73,7 +73,7 @@ public class MicroserviceHostBuilder : IMicroserviceHostBuilder
         {
             throw new InvalidOperationException("MicroserviceHostBuilder is already built");
         }
-        
+
         _host = _hostBuilder.Build();
         _isBuilt = true;
         return this;
@@ -92,7 +92,7 @@ public class MicroserviceHostBuilder : IMicroserviceHostBuilder
         EnsureBuilt();
         await _host!.RunAsync(token).ConfigureAwait(false);
     }
-    
+
     private void EnsureBuilt()
     {
         if (!_isBuilt || _host == null)

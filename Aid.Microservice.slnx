@@ -23,5 +23,10 @@
     <Project Path="src/Aid.Microservice.Client/Aid.Microservice.Client.csproj" />
     <Project Path="src/Aid.Microservice.Server/Aid.Microservice.Server.csproj" />
     <Project Path="src/Aid.Microservice.Shared/Aid.Microservice.Shared.csproj" />
+    <Project Path="src/Aid.Microservice.SourceGenerators/Aid.Microservice.SourceGenerators.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Aid.Microservice.Client.Tests/Aid.Microservice.Client.Tests.csproj" />
+    <Project Path="tests/Aid.Microservice.Server.Tests/Aid.Microservice.Server.Tests.csproj" />
   </Folder>
 </Solution>

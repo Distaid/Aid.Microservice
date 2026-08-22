@@ -6,30 +6,30 @@ await using var factory = new RpcClientFactory("localhost", 5672, "guest", "gues
 
 // --- Default protocol (DefaultJsonProtocol on "aid_rpc" exchange) ---
 await using var simpleClient = factory.CreateClient("simple");
-var simpleResult = await simpleClient.CallAsync<int>("multiple", new {a = 5, b = 10});
+var simpleResult = await simpleClient.CallAsync<int>("multiple", new { a = 5, b = 10 });
 Console.WriteLine($"[default] simple.multiple(a=5, b=10) => {simpleResult}");
 
 await using var namedClient = factory.CreateClient("just_name_me");
-var namedResult = await namedClient.CallAsync<int>("and_me", new {a = 5, b = 10});
+var namedResult = await namedClient.CallAsync<int>("and_me", new { a = 5, b = 10 });
 Console.WriteLine($"[default] just_name_me.and_me(a=5, b=10) => {namedResult}");
 
 // --- Nameko protocol (NamekoSerializer on "nameko-rpc" exchange) ---
 await using var namekoClient = factory.CreateClient("nameko_service", new NamekoProtocol());
-var namekoResult = await namekoClient.CallAsync<int>("add", new {a = 3, b = 7});
+var namekoResult = await namekoClient.CallAsync<int>("add", new { a = 3, b = 7 });
 Console.WriteLine($"[nameko] nameko_service.add(a=3, b=7) => {namekoResult}");
 
 // --- Mixed service: call different methods on different exchanges ---
 await using var mixedNamekoClient = factory.CreateClient("mixed_service", new NamekoProtocol());
-var mixedNamekoResult = await mixedNamekoClient.CallAsync<int>("nameko_add", new {a = 10, b = 20});
+var mixedNamekoResult = await mixedNamekoClient.CallAsync<int>("nameko_add", new { a = 10, b = 20 });
 Console.WriteLine($"[nameko] mixed_service.nameko_add(a=10, b=20) => {mixedNamekoResult}");
 
 await using var mixedDefaultClient = factory.CreateClient("mixed_service");
-var mixedDefaultResult = await mixedDefaultClient.CallAsync<int>("default_add", new {a = 100, b = 200});
+var mixedDefaultResult = await mixedDefaultClient.CallAsync<int>("default_add", new { a = 100, b = 200 });
 Console.WriteLine($"[default] mixed_service.default_add(a=100, b=200) => {mixedDefaultResult}");
 
 // --- Async / DI / Proxy ---
 await using var asyncClient = factory.CreateClient("async");
-await asyncClient.CallAsync("delay", new {seconds = 1});
+await asyncClient.CallAsync("delay", new { seconds = 1 });
 Console.WriteLine("[default] async.delay(seconds=1) => done");
 
 await using var proxyClient = factory.CreateClient("proxy");

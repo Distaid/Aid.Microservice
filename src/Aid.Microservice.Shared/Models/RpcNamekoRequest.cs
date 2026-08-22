@@ -57,11 +57,13 @@ public class RpcNamekoRequest
     /// Converts the <see cref="Kwargs"/> to a dictionary of <see cref="JsonElement"/> values.
     /// Returns <c>null</c> if <see cref="Kwargs"/> is not set.
     /// </summary>
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode", Justification = "Dynamic serialization of Kwargs object")]
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "Dynamic serialization of Kwargs object")]
     internal Dictionary<string, JsonElement>? ToParametersDictionary(JsonSerializerOptions options)
     {
         if (Kwargs == null) return null;
 
-        using var doc = JsonSerializer.SerializeToDocument(Kwargs, options);
+        using var doc = JsonSerializer.SerializeToDocument(Kwargs, Kwargs.GetType(), options);
         if (doc.RootElement.ValueKind != JsonValueKind.Object) return null;
 
         var dict = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);

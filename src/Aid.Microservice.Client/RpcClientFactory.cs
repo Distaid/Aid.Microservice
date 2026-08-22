@@ -17,9 +17,9 @@ public class RpcClientFactory : IRpcClientFactory, IAsyncDisposable
     private readonly IRpcProtocol _protocol;
     private readonly bool _ownsConnectionService;
     private readonly string _exchangeName;
-    
+
     private readonly ConcurrentDictionary<string, IRpcClient> _clients = new(StringComparer.OrdinalIgnoreCase);
-    
+
     public RpcClientFactory(
         IRabbitMqConnectionService connectionService,
         ILoggerFactory loggerFactory,
@@ -37,9 +37,9 @@ public class RpcClientFactory : IRpcClientFactory, IAsyncDisposable
     {
         _loggerFactory = NullLoggerFactory.Instance;
         var connectionLogger = _loggerFactory.CreateLogger<RabbitMqConnectionService>();
-        
+
         _connectionService = new RabbitMqConnectionService(
-            connectionLogger, 
+            connectionLogger,
             Options.Create(configuration));
 
         _protocol = protocol ?? new DefaultJsonProtocol();
@@ -48,7 +48,7 @@ public class RpcClientFactory : IRpcClientFactory, IAsyncDisposable
             : configuration.ExchangeName;
         _ownsConnectionService = true;
     }
-    
+
     public RpcClientFactory(
         string hostname,
         int port,
@@ -61,7 +61,7 @@ public class RpcClientFactory : IRpcClientFactory, IAsyncDisposable
     {
         _protocol = protocol ?? new DefaultJsonProtocol();
         _exchangeName = exchangeName ?? _protocol.DefaultExchangeName;
-        
+
         var config = new RabbitMqConfiguration
         {
             Hostname = hostname,
@@ -72,14 +72,14 @@ public class RpcClientFactory : IRpcClientFactory, IAsyncDisposable
             RetryCount = retryCount,
             RecoveryInterval = recoveryInterval
         };
-        
+
         _loggerFactory = NullLoggerFactory.Instance;
         var connectionLogger = _loggerFactory.CreateLogger<RabbitMqConnectionService>();
         _connectionService = new RabbitMqConnectionService(connectionLogger, Options.Create(config));
-        
+
         _ownsConnectionService = true;
     }
-    
+
     public IRpcClient CreateClient(string serviceName)
     {
         return CreateClient(serviceName, _protocol, _exchangeName);
@@ -102,7 +102,7 @@ public class RpcClientFactory : IRpcClientFactory, IAsyncDisposable
         }
 
         var key = $"{serviceName}|{protocol.GetType().Name}|{exchangeName}";
-        
+
         while (true)
         {
             if (_clients.TryGetValue(key, out var existingClient))
@@ -134,7 +134,7 @@ public class RpcClientFactory : IRpcClientFactory, IAsyncDisposable
             {
                 return wrapper;
             }
-            
+
             // Clean up the concurrently created unused client
             newClient.DisposeAsync().AsTask().GetAwaiter().GetResult();
         }
@@ -148,7 +148,7 @@ public class RpcClientFactory : IRpcClientFactory, IAsyncDisposable
     private sealed class RefCountedRpcClient(RpcClientFactory owner, string key, IRpcClient inner) : IRpcClient
     {
         private int _refCount = 1;
-        private readonly object _lock = new();
+        private readonly Lock _lock = new();
         private bool _disposed;
 
         public void Increment()
@@ -171,17 +171,26 @@ public class RpcClientFactory : IRpcClientFactory, IAsyncDisposable
         public Task<TResponse?> CallAsync<TResponse>(string method, object? parameters = null, TimeSpan? timeout = null, CancellationToken cancellationToken = default)
             => inner.CallAsync<TResponse>(method, parameters, timeout, cancellationToken);
 
+        public Task<TResponse?> CallAsync<TResponse>(string method, object? parameters, System.Text.Json.Serialization.Metadata.JsonTypeInfo<TResponse> jsonTypeInfo, TimeSpan? timeout = null, CancellationToken cancellationToken = default)
+            => inner.CallAsync(method, parameters, jsonTypeInfo, timeout, cancellationToken);
+
         public Task CallQuery(string queryName, object? parameters = null, TimeSpan? timeout = null, CancellationToken cancellationToken = default)
             => inner.CallQuery(queryName, parameters, timeout, cancellationToken);
 
         public Task<TResponse?> CallQuery<TResponse>(string queryName, object? parameters = null, TimeSpan? timeout = null, CancellationToken cancellationToken = default)
             => inner.CallQuery<TResponse>(queryName, parameters, timeout, cancellationToken);
 
+        public Task<TResponse?> CallQuery<TResponse>(string queryName, object? parameters, System.Text.Json.Serialization.Metadata.JsonTypeInfo<TResponse> jsonTypeInfo, TimeSpan? timeout = null, CancellationToken cancellationToken = default)
+            => inner.CallQuery(queryName, parameters, jsonTypeInfo, timeout, cancellationToken);
+
         public Task CallQueryAsync(string queryName, object? parameters = null, TimeSpan? timeout = null, CancellationToken cancellationToken = default)
             => inner.CallQueryAsync(queryName, parameters, timeout, cancellationToken);
 
         public Task<TResponse?> CallQueryAsync<TResponse>(string queryName, object? parameters = null, TimeSpan? timeout = null, CancellationToken cancellationToken = default)
             => inner.CallQueryAsync<TResponse>(queryName, parameters, timeout, cancellationToken);
+
+        public Task<TResponse?> CallQueryAsync<TResponse>(string queryName, object? parameters, System.Text.Json.Serialization.Metadata.JsonTypeInfo<TResponse> jsonTypeInfo, TimeSpan? timeout = null, CancellationToken cancellationToken = default)
+            => inner.CallQueryAsync(queryName, parameters, jsonTypeInfo, timeout, cancellationToken);
 
         public async ValueTask DisposeAsync()
         {
@@ -225,7 +234,7 @@ public class RpcClientFactory : IRpcClientFactory, IAsyncDisposable
             }
         }
     }
-    
+
     public async ValueTask DisposeAsync()
     {
         var clientsList = _clients.Values.ToList();
@@ -253,7 +262,7 @@ public class RpcClientFactory : IRpcClientFactory, IAsyncDisposable
         {
             await _connectionService.DisposeAsync();
         }
-        
+
         GC.SuppressFinalize(this);
     }
 }
